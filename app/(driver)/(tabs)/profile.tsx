@@ -13,38 +13,93 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { User, Car, Star, Shield, Bell, Settings, CreditCard, FileText, CircleHelp as HelpCircle, LogOut, ChevronRight, CreditCard as Edit, Award, MapPin } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
+import { driversTable, profilesTable } from '@/lib/typedSupabase';
+import { Database } from '@/types/database';
 import { router } from 'expo-router';
+
+type Driver = Database['public']['Tables']['drivers']['Row'];
+type Profile = Database['public']['Tables']['profiles']['Row'];
 
 export default function DriverProfile() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [autoAcceptEnabled, setAutoAcceptEnabled] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [driverData, setDriverData] = useState<Driver | null>(null);
+  const [profileData, setProfileData] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
   const { user, signOut } = useAuth();
 
   useEffect(() => {
+    if (user) {
+      loadDriverData();
+    }
+    
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 600,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [user]);
 
-  const driverStats = {
-    rating: 4.8,
-    totalTrips: 1247,
-    totalEarnings: 15680.50,
-    acceptanceRate: 92,
-    completionRate: 98,
-    yearsActive: 3,
+  const loadDriverData = async () => {
+    if (!user) return;
+    
+    try {
+      // Load driver data
+      const { data: drivers, error: driverError } = await driversTable()
+        .select('*')
+        .eq('email', user.email!)
+        .execute();
+      
+      if (driverError) {
+        console.error('Error loading driver data:', driverError);
+      } else if (drivers && drivers.data && drivers.data.length > 0) {
+        setDriverData(drivers.data[0]);
+      }
+      
+      // Load profile data
+      const { data: profiles, error: profileError } = await profilesTable()
+        .select('*')
+        .eq('user_id', user.id)
+        .execute();
+      
+      if (profileError) {
+        console.error('Error loading profile data:', profileError);
+      } else if (profiles && profiles.data && profiles.data.length > 0) {
+        setProfileData(profiles.data[0]);
+      }
+    } catch (error) {
+      console.error('Error loading driver data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Calculate years active
+  const getYearsActive = () => {
+    if (!driverData?.created_at) return 0;
+    const createdDate = new Date(driverData.created_at);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - createdDate.getTime());
+    const diffYears = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 365));
+    return diffYears;
+  };
+
+  // Get driver stats from database or fallback to defaults
+  const driverStats = {
+    rating: driverData?.rating || 4.8,
+    totalTrips: driverData?.total_rides || 0,
+    totalEarnings: driverData?.earnings || 0,
+    acceptanceRate: 92, // This would need to be calculated from ride history
+    completionRate: 98, // This would need to be calculated from ride history
+    yearsActive: getYearsActive(),
+  };
+
+  // Get vehicle info from database or fallback
   const vehicleInfo = {
-    make: 'Toyota',
-    model: 'Camry',
-    year: 2022,
-    color: 'Silver',
-    licensePlate: 'ABC 123',
-    verified: true,
+    type: driverData?.vehicle_type || 'economy',
+    licensePlate: driverData?.license_plate || 'N/A',
+    verified: driverData?.documents_verified || false,
   };
 
   const handleLogout = () => {
@@ -58,31 +113,43 @@ export default function DriverProfile() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await signOut();
               router.replace('/(auth)/login');
-            } catch (error) {
-              console.error('Driver logout error:', error);
+              console.error('Logout error:', error);
+  const handleSwitchToPassenger = () => {
               router.replace('/(auth)/login');
-            }
+            router.replace('/(tabs)');
           },
         },
       ]
     );
   };
 
-  const handleSwitchToPassenger = () => {
+  const handleUpdateProfile = async () => {
+    if (!user || !driverData) return;
+    
+    Alert.alert('Update Profile', 'Profile update feature coming soon!');
+  };
+
+  const handleManageVehicle = async () => {
+    if (!driverData) return;
+    
     Alert.alert(
-      'Switch to Passenger Mode',
-      'You will be redirected to the passenger app. Continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Continue',
-          onPress: () => {
-            router.replace('/(tabs)');
-          },
-        },
-      ]
+      'Vehicle Information',
+      `Vehicle Type: ${vehicleInfo.type}\nLicense Plate: ${vehicleInfo.licensePlate}\nVerified: ${vehicleInfo.verified ? 'Yes' : 'No'}`
+    );
+  };
+
+  const handleManageDocuments = async () => {
+    Alert.alert(
+      'Documents',
+      `Status: ${vehicleInfo.verified ? 'All documents verified' : 'Verification pending'}`
+    );
+  };
+
+  const handleEarningsSettings = async () => {
+    Alert.alert(
+      'Earnings & Payments',
+      `Total Earnings: $${driverStats.totalEarnings.toFixed(2)}\nTotal Trips: ${driverStats.totalTrips}`
     );
   };
 
@@ -91,24 +158,24 @@ export default function DriverProfile() {
       id: 'vehicle',
       icon: Car,
       label: 'Vehicle Information',
-      value: `${vehicleInfo.year} ${vehicleInfo.make} ${vehicleInfo.model}`,
-      onPress: () => Alert.alert('Vehicle Info', 'Manage your vehicle information'),
+      value: `${vehicleInfo.type} • ${vehicleInfo.licensePlate}`,
+      onPress: handleManageVehicle,
       color: '#3B82F6',
     },
     {
       id: 'documents',
       icon: FileText,
       label: 'Documents',
-      value: 'All verified',
-      onPress: () => Alert.alert('Documents', 'View and manage your documents'),
+      value: vehicleInfo.verified ? 'All verified' : 'Verification pending',
+      onPress: handleManageDocuments,
       color: '#10B981',
     },
     {
       id: 'earnings',
       icon: CreditCard,
       label: 'Earnings & Payments',
-      value: 'Bank account linked',
-      onPress: () => Alert.alert('Earnings', 'Manage your payment settings'),
+      value: `$${driverStats.totalEarnings.toFixed(2)} earned`,
+      onPress: handleEarningsSettings,
       color: '#F59E0B',
     },
     {
@@ -136,7 +203,21 @@ export default function DriverProfile() {
       id: 'passenger-mode',
       icon: User,
       label: 'Switch to Passenger Mode',
-      onPress: handleSwitchToPassenger,
+      onPress: () => {
+        Alert.alert(
+          'Switch to Passenger Mode',
+          'You will be redirected to the passenger app. Continue?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Continue',
+              onPress: () => {
+                router.replace('/(tabs)');
+              },
+            },
+          ]
+        );
+      },
       color: '#3B82F6',
     },
     {
@@ -184,6 +265,17 @@ export default function DriverProfile() {
     </TouchableOpacity>
   );
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading driver profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -191,7 +283,7 @@ export default function DriverProfile() {
       {/* Header */}
       <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
         <Text style={styles.title}>Driver Profile</Text>
-        <TouchableOpacity style={styles.editButton}>
+        <TouchableOpacity style={styles.editButton} onPress={handleUpdateProfile}>
           <Edit size={20} color="#6B7280" />
         </TouchableOpacity>
       </Animated.View>
@@ -204,12 +296,22 @@ export default function DriverProfile() {
               <User size={32} color="#FFFFFF" />
             </View>
             <View style={styles.driverInfo}>
-              <Text style={styles.driverName}>John Smith</Text>
+              <Text style={styles.driverName}>
+                {driverData?.name || user?.user_metadata?.full_name || 'Driver'}
+              </Text>
               <Text style={styles.driverEmail}>{user?.email}</Text>
               <View style={styles.driverBadges}>
-                <View style={styles.verifiedBadge}>
+                <View style={[
+                  styles.verifiedBadge,
+                  !vehicleInfo.verified && styles.pendingBadge
+                ]}>
                   <Shield size={12} color="#10B981" />
-                  <Text style={styles.verifiedText}>Verified Driver</Text>
+                  <Text style={[
+                    styles.verifiedText,
+                    !vehicleInfo.verified && styles.pendingText
+                  ]}>
+                    {vehicleInfo.verified ? 'Verified Driver' : 'Verification Pending'}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -229,7 +331,7 @@ export default function DriverProfile() {
               <View style={[styles.statIcon, { backgroundColor: '#DBEAFE' }]}>
                 <Car size={16} color="#3B82F6" />
               </View>
-              <Text style={styles.statValue}>{driverStats.totalTrips}</Text>
+              <Text style={styles.statValue}>{driverStats.totalTrips.toLocaleString()}</Text>
               <Text style={styles.statLabel}>Trips</Text>
             </View>
             <View style={styles.statDivider} />
@@ -268,10 +370,10 @@ export default function DriverProfile() {
               </View>
               <View style={styles.vehicleInfo}>
                 <Text style={styles.vehicleName}>
-                  {vehicleInfo.year} {vehicleInfo.make} {vehicleInfo.model}
+                  {vehicleInfo.type.charAt(0).toUpperCase() + vehicleInfo.type.slice(1)} Vehicle
                 </Text>
                 <Text style={styles.vehicleDetails}>
-                  {vehicleInfo.color} • {vehicleInfo.licensePlate}
+                  License: {vehicleInfo.licensePlate}
                 </Text>
               </View>
               {vehicleInfo.verified && (
@@ -320,6 +422,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
   },
   header: {
     flexDirection: 'row',
@@ -399,10 +510,16 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     gap: 4,
   },
+  pendingBadge: {
+    backgroundColor: '#FEF3C7',
+  },
   verifiedText: {
     color: '#10B981',
     fontSize: 12,
     fontWeight: '600',
+  },
+  pendingText: {
+    color: '#F59E0B',
   },
   statsContainer: {
     flexDirection: 'row',
