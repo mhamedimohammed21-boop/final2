@@ -48,25 +48,23 @@ export default function DriverProfile() {
       // Load driver data
       const { data: drivers, error: driverError } = await driversTable()
         .select('*')
-        .eq('email', user.email!)
-        .execute();
+        .eq('email', user.email!);
       
       if (driverError) {
         console.error('Error loading driver data:', driverError);
-      } else if (drivers && drivers.data && drivers.data.length > 0) {
-        setDriverData(drivers.data[0]);
+      } else if (drivers && drivers.length > 0) {
+        setDriverData(drivers[0]);
       }
       
       // Load profile data
       const { data: profiles, error: profileError } = await profilesTable()
         .select('*')
-        .eq('user_id', user.id)
-        .execute();
+        .eq('user_id', user.id);
       
       if (profileError) {
         console.error('Error loading profile data:', profileError);
-      } else if (profiles && profiles.data && profiles.data.length > 0) {
-        setProfileData(profiles.data[0]);
+      } else if (profiles && profiles.length > 0) {
+        setProfileData(profiles[0]);
       }
     } catch (error) {
       console.error('Error loading driver data:', error);
