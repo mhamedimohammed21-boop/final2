@@ -12,15 +12,12 @@ import {
   StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Link, router, useLocalSearchParams } from 'expo-router';
-import { Mail, Lock, User, Eye, EyeOff, Car, Users, Shield } from 'lucide-react-native';
+import { Link, router } from 'expo-router';
+import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { UserType } from '@/types/database';
 
 export default function SignupScreen() {
-  const params = useLocalSearchParams<{ userType?: UserType }>();
-  const userType = params.userType || 'passenger';
-  
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -47,7 +44,7 @@ export default function SignupScreen() {
     }
 
     setLoading(true);
-    const { error } = await signUp(email, password, fullName, userType as UserType);
+    const { error } = await signUp(email, password, fullName, 'passenger');
     setLoading(false);
 
     if (error) {
@@ -70,25 +67,9 @@ export default function SignupScreen() {
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.header}>
-            <View style={styles.userTypeIndicator}>
-              {userType === 'driver' ? (
-                <Car size={24} color="#3B82F6" />
-              ) : userType === 'admin' ? (
-                <Shield size={24} color="#DC2626" />
-              ) : (
-                <Users size={24} color="#3B82F6" />
-              )}
-              <Text style={styles.userTypeText}>
-                Signing up as {userType === 'driver' ? 'Driver' : userType === 'admin' ? 'Admin' : 'Passenger'}
-              </Text>
-            </View>
             <Text style={styles.title}>Create Account</Text>
             <Text style={styles.subtitle}>
-              {userType === 'driver' 
-                ? 'Start earning by giving rides' 
-                : userType === 'admin'
-                ? 'Manage the platform'
-                : 'Join us and start riding'}
+              Join us and start riding
             </Text>
           </View>
 

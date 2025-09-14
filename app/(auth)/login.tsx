@@ -13,14 +13,16 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, router } from 'expo-router';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, Users, Car, Shield } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { isSupabaseConfigured } from '@/lib/supabase';
+import { UserType } from '@/types/database';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [selectedUserType, setSelectedUserType] = useState<UserType>('passenger');
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
 
@@ -50,7 +52,7 @@ export default function LoginScreen() {
     }
 
     setLoading(true);
-    const { error } = await signIn(email, password);
+    const { error } = await signIn(email, password, selectedUserType);
     setLoading(false);
 
     if (error) {
@@ -74,6 +76,59 @@ export default function LoginScreen() {
             <Text style={styles.subtitle}>Sign in to your account</Text>
           </View>
 
+          {/* User Type Selection */}
+          <View style={styles.userTypeSection}>
+            <Text style={styles.userTypeTitle}>I am a:</Text>
+            <View style={styles.userTypeOptions}>
+              <TouchableOpacity
+                style={[
+                  styles.userTypeOption,
+                  selectedUserType === 'passenger' && styles.selectedUserType
+                ]}
+                onPress={() => setSelectedUserType('passenger')}
+              >
+                <Users size={20} color={selectedUserType === 'passenger' ? '#FFFFFF' : '#3B82F6'} />
+                <Text style={[
+                  styles.userTypeText,
+                  selectedUserType === 'passenger' && styles.selectedUserTypeText
+                ]}>
+                  Passenger
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.userTypeOption,
+                  selectedUserType === 'driver' && styles.selectedUserType
+                ]}
+                onPress={() => setSelectedUserType('driver')}
+              >
+                <Car size={20} color={selectedUserType === 'driver' ? '#FFFFFF' : '#10B981'} />
+                <Text style={[
+                  styles.userTypeText,
+                  selectedUserType === 'driver' && styles.selectedUserTypeText
+                ]}>
+                  Driver
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.userTypeOption,
+                  selectedUserType === 'admin' && styles.selectedUserType
+                ]}
+                onPress={() => setSelectedUserType('admin')}
+              >
+                <Shield size={20} color={selectedUserType === 'admin' ? '#FFFFFF' : '#DC2626'} />
+                <Text style={[
+                  styles.userTypeText,
+                  selectedUserType === 'admin' && styles.selectedUserTypeText
+                ]}>
+                  Admin
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
           <View style={styles.form}>
             <View style={styles.inputContainer}>
               <Mail size={20} color="#9CA3AF" style={styles.inputIcon} />
@@ -134,7 +189,7 @@ export default function LoginScreen() {
 
             <View style={styles.signupContainer}>
               <Text style={styles.signupText}>Don't have an account? </Text>
-              <Link href="/(auth)/user-type-selection" asChild>
+              <Link href="/(auth)/signup" asChild>
                 <TouchableOpacity>
                   <Text style={styles.signupLink}>Sign Up</Text>
                 </TouchableOpacity>
@@ -273,5 +328,44 @@ const styles = StyleSheet.create({
     color: 'black',
     fontSize: 14,
     fontWeight: '600',
+  },
+  userTypeSection: {
+    marginBottom: 32,
+  },
+  userTypeTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  userTypeOptions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  userTypeOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    gap: 6,
+  },
+  selectedUserType: {
+    backgroundColor: '#3B82F6',
+    borderColor: '#3B82F6',
+  },
+  userTypeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  selectedUserTypeText: {
+    color: '#FFFFFF',
   },
 });

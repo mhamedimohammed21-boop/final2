@@ -59,6 +59,7 @@ export function useAuth() {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string, userType?: UserType) => {
     if (!isSupabaseConfigured()) {
       throw new Error('Supabase is not configured. Please set up your Supabase credentials.');
     }
@@ -68,10 +69,27 @@ export function useAuth() {
       password,
     });
     
-    // If user doesn't have user_type in metadata, default to passenger
-    if (data.user && !data.user.user_metadata?.user_type) {
-      console.log('User missing user_type, defaulting to passenger');
-      setUserType('passenger');
+    // Update user metadata with selected user type if provided
+    if (data.user && userType) {
+      console.log('Updating user type to:', userType);
+      
+      // Update user metadata
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: {
+          ...data.user.user_metadata,
+          user_type: userType,
+        }
+      });
+      
+      if (updateError) {
+        console.error('Error updating user type:', updateError);
+      } else {
+        setUserType(userType);
+      }
+    } else if (data.user) {
+      // Use existing user type or default to passenger
+      const existingUserType = data.user.user_metadata?.user_type as UserType;
+      setUserType(existingUserType || 'passenger');
     }
     
     return { data, error };
