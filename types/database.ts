@@ -133,6 +133,7 @@ export interface Database {
       passengers: {
         Row: {
           id: string;
+          user_id: string;
           name: string;
           email: string;
           phone: string;
@@ -141,6 +142,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
+          user_id: string;
           name: string;
           email: string;
           phone: string;
@@ -149,6 +151,7 @@ export interface Database {
         };
         Update: {
           id?: string;
+          user_id?: string;
           name?: string;
           email?: string;
           phone?: string;

@@ -277,53 +277,40 @@ export class RideService {
 
   // Ensure passenger record exists and return passenger ID
   private async ensurePassengerExists(userId: string): Promise<string> {
-    const { data: profile } = await profilesTable()
-      .select('*')
+    // Directly query passengers table using user_id
+    const { data: existingPassenger, error: selectError } = await passengersTable()
+      .select('id')
       .eq('user_id', userId)
       .single();
 
-    if (!profile) {
-      // If no profile exists, create a basic one
-      const { data: user } = await supabase.auth.getUser();
-      if (!user?.user) throw new Error('User not found');
-      
-      // Create a passenger with basic info from auth
-      const { data: newPassenger, error } = await passengersTable()
-        .insert({
-          name: user.user.email?.split('@')[0] || 'User',
-          email: user.user.email || '',
-          phone: '',
-          status: 'active'
-        })
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return newPassenger.id;
+    if (selectError && selectError.code !== 'PGRST116') { // PGRST116 is "No rows found"
+      console.error('Error checking existing passenger:', selectError);
+      throw selectError;
     }
-
-    // Check if passenger exists
-    const { data: existingPassenger } = await passengersTable()
-      .select('id')
-      .eq('email', profile.email)
-      .single();
 
     if (existingPassenger) {
       return existingPassenger.id;
     }
 
-    // Create new passenger
-    const { data: newPassenger, error } = await passengersTable()
+    // If no passenger record found, create one
+    const { data: user } = await supabase.auth.getUser();
+    if (!user?.user) throw new Error('User not found');
+    
+    const { data: newPassenger, error: insertError } = await passengersTable()
       .insert({
-        name: profile.full_name || 'User',
-        email: profile.email,
-        phone: profile.phone || '',
+        user_id: userId,
+        name: user.user.email?.split('@')[0] || 'User',
+        email: user.user.email || '',
+        phone: '',
         status: 'active'
       })
       .select()
       .single();
     
-    if (error) throw error;
+    if (insertError) {
+      console.error('Error creating new passenger:', insertError);
+      throw insertError;
+    }
     return newPassenger.id;
   }
 
