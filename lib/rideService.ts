@@ -293,14 +293,23 @@ export class RideService {
     }
 
     // If no passenger record found, create one
-    const { data: user } = await supabase.auth.getUser();
-    if (!user?.user) throw new Error('User not found');
+    // Get user profile instead of auth.users
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('email, full_name')
+      .eq('user_id', userId)
+      .single();
+    
+    if (profileError || !profile) {
+      console.error('Error getting user profile:', profileError);
+      throw new Error('User profile not found');
+    }
     
     const { data: newPassenger, error: insertError } = await passengersTable()
       .insert({
         user_id: userId,
-        name: user.user.email?.split('@')[0] || 'User',
-        email: user.user.email || '',
+        name: profile.full_name || profile.email?.split('@')[0] || 'User',
+        email: profile.email || '',
         phone: '',
         status: 'active'
       })
