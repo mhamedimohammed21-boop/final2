@@ -120,49 +120,37 @@ export default function DriverDashboard() {
     
     const newStatus = isOnline ? 'inactive' : 'active';
     
-    Alert.alert(
-      isOnline ? 'Going Offline' : 'Going Online',
-      isOnline 
-        ? 'You will stop receiving ride requests' 
-        : 'You will start receiving ride requests',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Confirm', 
-          onPress: async () => {
-            try {
-              // Update driver status in database
-              const { error } = await driversTable()
-                .update({ 
-                  status: newStatus,
-                  last_active: new Date().toISOString()
-                })
-                .eq('id', driverData.id);
-              
-              if (error) throw error;
-              
-              setIsOnline(!isOnline);
-              
-              Alert.alert(
-                'Status Updated', 
-                isOnline ? 'You are now offline' : 'You are now online and ready to receive rides!'
-              );
-              
-              // If going online, start checking for ride requests
-              if (!isOnline) {
-                loadRideRequests();
-              } else {
-                // If going offline, clear any pending requests
-                setPendingRideRequest(null);
-              }
-            } catch (error) {
-              console.error('Error updating driver status:', error);
-              Alert.alert('Error', 'Failed to update status. Please try again.');
-            }
-          }
-        },
-      ]
-    );
+    try {
+      // Update driver status in database
+      const { error } = await driversTable()
+        .update({ 
+          status: newStatus,
+          last_active: new Date().toISOString()
+        })
+        .eq('id', driverData.id);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setIsOnline(!isOnline);
+      setDriverData({ ...driverData, status: newStatus });
+      
+      Alert.alert(
+        'Status Updated', 
+        isOnline ? 'You are now offline' : 'You are now online and ready to receive rides!'
+      );
+      
+      // If going online, start checking for ride requests
+      if (!isOnline) {
+        loadRideRequests();
+      } else {
+        // If going offline, clear any pending requests
+        setPendingRideRequest(null);
+      }
+    } catch (error) {
+      console.error('Error updating driver status:', error);
+      Alert.alert('Error', 'Failed to update status. Please try again.');
+    }
   };
 
   // Refresh ride requests every 30 seconds when online
