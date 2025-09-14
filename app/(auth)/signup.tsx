@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, router, useLocalSearchParams } from 'expo-router';
-import { Mail, Lock, User, Eye, EyeOff, Car, Users } from 'lucide-react-native';
+import { Mail, Lock, User, Eye, EyeOff, Car, Users, Shield } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { UserType } from '@/types/database';
 
@@ -73,17 +73,21 @@ export default function SignupScreen() {
             <View style={styles.userTypeIndicator}>
               {userType === 'driver' ? (
                 <Car size={24} color="#3B82F6" />
+              ) : userType === 'admin' ? (
+                <Shield size={24} color="#DC2626" />
               ) : (
                 <Users size={24} color="#3B82F6" />
               )}
               <Text style={styles.userTypeText}>
-                Signing up as {userType === 'driver' ? 'Driver' : 'Passenger'}
+                Signing up as {userType === 'driver' ? 'Driver' : userType === 'admin' ? 'Admin' : 'Passenger'}
               </Text>
             </View>
             <Text style={styles.title}>Create Account</Text>
             <Text style={styles.subtitle}>
               {userType === 'driver' 
                 ? 'Start earning by giving rides' 
+                : userType === 'admin'
+                ? 'Manage the platform'
                 : 'Join us and start riding'}
             </Text>
           </View>

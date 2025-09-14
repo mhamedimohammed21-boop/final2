@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Car, Users } from 'lucide-react-native';
+import { Car, Users, Shield } from 'lucide-react-native';
 import { UserType } from '@/types/database';
 
 export default function UserTypeSelectionScreen() {
@@ -86,7 +86,7 @@ export default function UserTypeSelectionScreen() {
             ]}>
               <Car 
                 size={40} 
-                color={selectedType === 'driver' ? '#FFFFFF' : '#3B82F6'} 
+                color={selectedType === 'driver' ? '#FFFFFF' : '#10B981'} 
               />
             </View>
             <Text style={[
@@ -99,6 +99,39 @@ export default function UserTypeSelectionScreen() {
               Earn money by giving rides to passengers
             </Text>
             {selectedType === 'driver' && (
+              <View style={styles.checkmark}>
+                <Text style={styles.checkmarkText}>✓</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.optionCard,
+              selectedType === 'admin' && styles.optionCardSelected
+            ]}
+            onPress={() => setSelectedType('admin')}
+            activeOpacity={0.7}
+          >
+            <View style={[
+              styles.iconContainer,
+              selectedType === 'admin' && styles.iconContainerSelected
+            ]}>
+              <Shield 
+                size={40} 
+                color={selectedType === 'admin' ? '#FFFFFF' : '#DC2626'} 
+              />
+            </View>
+            <Text style={[
+              styles.optionTitle,
+              selectedType === 'admin' && styles.optionTitleSelected
+            ]}>
+              Admin
+            </Text>
+            <Text style={styles.optionDescription}>
+              Manage the platform and oversee operations
+            </Text>
+            {selectedType === 'admin' && (
               <View style={styles.checkmark}>
                 <Text style={styles.checkmarkText}>✓</Text>
               </View>

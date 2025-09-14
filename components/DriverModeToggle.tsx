@@ -1,12 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { Car, User, ArrowRight } from 'lucide-react-native';
+import { Car, User, ArrowRight, Shield } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useRouter } from 'expo-router';
 
 interface DriverModeToggleProps {
-  currentMode: 'passenger' | 'driver';
-  onModeChange: (mode: 'passenger' | 'driver') => void;
+  currentMode: 'passenger' | 'driver' | 'admin';
+  onModeChange: (mode: 'passenger' | 'driver' | 'admin') => void;
 }
 
 export default function DriverModeToggle({ currentMode, onModeChange }: DriverModeToggleProps) {
@@ -29,6 +29,22 @@ export default function DriverModeToggle({ currentMode, onModeChange }: DriverMo
     );
   };
 
+  const handleSwitchToAdmin = () => {
+    Alert.alert(
+      'Switch to Admin Mode',
+      'You will be redirected to the admin dashboard. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          onPress: () => {
+            onModeChange('admin');
+            routerInstance.push('/(admin)/dashboard');
+          },
+        },
+      ]
+    );
+  };
   const handleSwitchToPassenger = () => {
     Alert.alert(
       'Switch to Passenger Mode',
@@ -57,7 +73,7 @@ export default function DriverModeToggle({ currentMode, onModeChange }: DriverMo
             styles.modeCard,
             currentMode === 'passenger' && styles.activeModeCard,
           ]}
-          onPress={currentMode === 'driver' ? handleSwitchToPassenger : undefined}
+          onPress={currentMode !== 'passenger' ? handleSwitchToPassenger : undefined}
           disabled={currentMode === 'passenger'}
         >
           <View style={styles.modeContent}>
@@ -93,7 +109,7 @@ export default function DriverModeToggle({ currentMode, onModeChange }: DriverMo
             styles.modeCard,
             currentMode === 'driver' && styles.activeModeCard,
           ]}
-          onPress={currentMode === 'passenger' ? handleSwitchToDriver : undefined}
+          onPress={currentMode !== 'driver' ? handleSwitchToDriver : undefined}
           disabled={currentMode === 'driver'}
         >
           <View style={styles.modeContent}>
@@ -112,11 +128,47 @@ export default function DriverModeToggle({ currentMode, onModeChange }: DriverMo
               </Text>
               <Text style={styles.modeDescription}>Accept rides and earn money</Text>
             </View>
-            {currentMode === 'passenger' && (
+            {currentMode !== 'driver' && (
               <ArrowRight size={20} color="#6B7280" />
             )}
           </View>
           {currentMode === 'driver' && (
+            <View style={styles.activeIndicator}>
+              <Text style={styles.activeText}>Current Mode</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {/* Admin Mode */}
+        <TouchableOpacity
+          style={[
+            styles.modeCard,
+            currentMode === 'admin' && styles.activeModeCard,
+          ]}
+          onPress={currentMode !== 'admin' ? handleSwitchToAdmin : undefined}
+          disabled={currentMode === 'admin'}
+        >
+          <View style={styles.modeContent}>
+            <View style={[
+              styles.modeIcon,
+              { backgroundColor: currentMode === 'admin' ? '#FEE2E2' : '#F3F4F6' }
+            ]}>
+              <Shield size={24} color={currentMode === 'admin' ? '#DC2626' : '#6B7280'} />
+            </View>
+            <View style={styles.modeInfo}>
+              <Text style={[
+                styles.modeTitle,
+                currentMode === 'admin' && styles.activeModeTitle,
+              ]}>
+                Admin
+              </Text>
+              <Text style={styles.modeDescription}>Manage platform and operations</Text>
+            </View>
+            {currentMode !== 'admin' && (
+              <ArrowRight size={20} color="#6B7280" />
+            )}
+          </View>
+          {currentMode === 'admin' && (
             <View style={styles.activeIndicator}>
               <Text style={styles.activeText}>Current Mode</Text>
             </View>

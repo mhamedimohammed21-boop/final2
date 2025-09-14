@@ -1,4 +1,4 @@
-export type UserType = 'passenger' | 'driver';
+export type UserType = 'passenger' | 'driver' | 'admin';
 
 export interface Database {
   public: {

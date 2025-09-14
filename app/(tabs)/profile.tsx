@@ -11,11 +11,12 @@ import {
   Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { User, CreditCard, MapPin, Bell, Shield, CircleHelp as HelpCircle, Settings, LogOut, ChevronRight, Star, Gift, Users, CreditCard as Edit } from 'lucide-react-native';
+import { User, CreditCard, MapPin, Bell, Shield, CircleHelp as HelpCircle, Settings, LogOut, ChevronRight, Star, Gift, Users, CreditCard as Edit, Car } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Database } from '@/types/database';
+import DriverModeToggle from '@/components/DriverModeToggle';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 
@@ -37,7 +38,7 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [fadeAnim] = useState(new Animated.Value(0));
-  const { user, signOut, loading: authLoading } = useAuth();
+  const { user, userType, signOut, loading: authLoading } = useAuth();
 
   useEffect(() => {
     if (user && !authLoading) {
@@ -88,7 +89,7 @@ export default function ProfileScreen() {
         full_name: 'John Doe',
         phone: null,
         avatar_url: null,
-        user_type: 'passenger',
+        user_type: userType || 'passenger',
         rating: 5.0,
         total_trips: 0,
         created_at: new Date().toISOString(),
@@ -211,6 +212,30 @@ export default function ProfileScreen() {
   ];
 
   const menuItems: ProfileSetting[] = [
+    {
+      id: 'become-driver',
+      icon: Car,
+      label: 'Become a Driver',
+      value: 'Start earning money',
+      onPress: () => {
+        if (userType === 'passenger') {
+          Alert.alert(
+            'Become a Driver',
+            'Would you like to apply to become a driver?',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { 
+                text: 'Apply Now', 
+                onPress: () => router.push('/(driver)/apply')
+              },
+            ]
+          );
+        } else {
+          Alert.alert('Info', 'You are already a driver or admin.');
+        }
+      },
+      color: '#10B981',
+    },
     {
       id: 'referral',
       icon: Gift,
@@ -354,6 +379,18 @@ export default function ProfileScreen() {
         <Animated.View style={[styles.section, { opacity: fadeAnim }]}>
           <Text style={styles.sectionTitle}>More</Text>
           <View style={styles.settingsContainer}>
+            {/* Show mode toggle for drivers and admins */}
+            {(userType === 'driver' || userType === 'admin') && (
+              <View style={styles.modeToggleContainer}>
+                <DriverModeToggle
+                  currentMode={userType}
+                  onModeChange={(mode) => {
+                    console.log('Mode change requested:', mode);
+                    // The actual navigation is handled in the DriverModeToggle component
+                  }}
+                />
+              </View>
+            )}
             {menuItems.map((item, index) => renderSettingItem(item, index))}
           </View>
         </Animated.View>
@@ -613,5 +650,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9CA3AF',
     fontWeight: '500',
+  },
+  modeToggleContainer: {
+    marginBottom: 16,
   },
 });
