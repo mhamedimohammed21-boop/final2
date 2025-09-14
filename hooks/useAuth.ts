@@ -30,9 +30,9 @@ export function useAuth() {
             .eq('user_id', session.user.id)
             .single() as { data: { user_type: UserType } | null; error: any };
           
-          if (error) {
+          if (error || !profile) {
             console.error('Error fetching profile:', error);
-            // Fallback to passenger if profile fetch fails
+            // Fallback to passenger if profile fetch fails or RLS recursion
             setUserType('passenger');
           } else if (profile?.user_type) {
             setUserType(profile.user_type);
@@ -41,6 +41,7 @@ export function useAuth() {
           }
         } catch (err) {
           console.error('Profile fetch error:', err);
+          // Always fallback to passenger on any error
           setUserType('passenger');
         }
       }
@@ -64,9 +65,9 @@ export function useAuth() {
             .eq('user_id', session.user.id)
             .single() as { data: { user_type: UserType } | null; error: any };
           
-          if (error) {
+          if (error || !profile) {
             console.error('Error fetching profile:', error);
-            // Fallback to passenger if profile fetch fails
+            // Fallback to passenger if profile fetch fails or RLS recursion
             setUserType('passenger');
           } else if (profile?.user_type) {
             setUserType(profile.user_type);
@@ -75,6 +76,7 @@ export function useAuth() {
           }
         } catch (err) {
           console.error('Profile fetch error:', err);
+          // Always fallback to passenger on any error
           setUserType('passenger');
         }
       } else {

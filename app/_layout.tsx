@@ -1,17 +1,50 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { View, Text, StyleSheet } from 'react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { router, useNavigationContainerRef, useSegments } from 'expo-router';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useState } from 'react';
 
+// Error Boundary Component
+function ErrorFallback({ error }: { error: Error }) {
+  return (
+    <View style={styles.errorContainer}>
+      <Text style={styles.errorTitle}>Something went wrong</Text>
+      <Text style={styles.errorMessage}>{error.message}</Text>
+    </View>
+  );
+}
+
 export default function RootLayout() {
   useFrameworkReady();
   const { user, userType, loading } = useAuth();
   const [isNavigationReady, setIsNavigationReady] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
   const navigationRef = useNavigationContainerRef();
   const segments = useSegments();
+
+  // Catch any errors during initialization
+  useEffect(() => {
+    const handleError = (error: Error) => {
+      console.error('App initialization error:', error);
+      setError(error);
+    };
+
+    // Global error handler
+    const originalConsoleError = console.error;
+    console.error = (...args) => {
+      originalConsoleError(...args);
+      if (args[0] instanceof Error) {
+        handleError(args[0]);
+      }
+    };
+
+    return () => {
+      console.error = originalConsoleError;
+    };
+  }, []);
 
   useEffect(() => {
     const unsubscribe = navigationRef.addListener('state', () => {
@@ -22,6 +55,7 @@ export default function RootLayout() {
   }, [navigationRef]);
 
   useEffect(() => {
+    try {
     if (loading) {
       return;
     }
@@ -89,10 +123,24 @@ export default function RootLayout() {
         router.replace(redirectPath);
       }
     }
+    } catch (error) {
+      console.error('Navigation error:', error);
+      setError(error as Error);
+    }
   }, [user, userType, loading, segments, isNavigationReady]);
 
+  // Show error screen if there's an error
+  if (error) {
+    return <ErrorFallback error={error} />;
+  }
+
+  // Show loading screen while initializing
   if (loading) {
-    return null;
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
   }
 
   return (
@@ -108,3 +156,34 @@ export default function RootLayout() {
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#DC2626',
+    marginBottom: 8,
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+});
