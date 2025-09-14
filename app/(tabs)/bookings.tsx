@@ -44,41 +44,9 @@ export default function BookingsScreen() {
           }
         } catch (error) {
           console.error('Error loading rides:', error);
-          // Fallback to mock data for testing
-          const mockRides: Ride[] = [
-            {
-              id: 'ride-1',
-              passenger_id: user.id,
-              driver_id: 'driver-1',
-              pickup_location: '123 Main Street, Downtown',
-              dropoff_location: '456 Oak Avenue, Uptown',
-              status: 'active',
-              fare: 24.50,
-              distance: 3.2,
-              duration: 18,
-              eta: '5 min',
-              created_at: new Date().toISOString(),
-              completed_at: null,
-              updated_at: new Date().toISOString(),
-            },
-            {
-              id: 'ride-2',
-              passenger_id: user.id,
-              driver_id: 'driver-2',
-              pickup_location: '789 Pine Street, Mall Area',
-              dropoff_location: '321 University Avenue',
-              status: 'completed',
-              fare: 18.75,
-              distance: 2.1,
-              duration: 12,
-              eta: null,
-              created_at: new Date(Date.now() - 86400000).toISOString(), // Yesterday
-              completed_at: new Date(Date.now() - 86400000 + 720000).toISOString(), // 12 min later
-              updated_at: new Date(Date.now() - 86400000).toISOString(),
-            },
-          ];
-          setRides(mockRides);
-          setActiveRide(mockRides.find(r => r.status === 'active') || null);
+          // Set empty arrays if loading fails
+          setRides([]);
+          setActiveRide(null);
         }
       }
     };

@@ -14,60 +14,172 @@ import { Users, Car, DollarSign, TrendingUp, Settings, FileText, ChartBar as Bar
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/hooks/useAuth';
 import { router } from 'expo-router';
+import { driversTable, ridesTable, passengersTable, supabase } from '@/lib/typedSupabase';
+import { Database } from '@/types/database';
+
+type Driver = Database['public']['Tables']['drivers']['Row'];
+type Ride = Database['public']['Tables']['rides']['Row'];
+type Passenger = Database['public']['Tables']['passengers']['Row'];
 
 export default function AdminDashboard() {
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [dashboardStats, setDashboardStats] = useState({
+    totalDrivers: 0,
+    activeDrivers: 0,
+    totalPassengers: 0,
+    activeRides: 0,
+    todayRevenue: 0,
+    pendingApplications: 0,
+    completedTrips: 0,
+    averageRating: 0,
+  });
+  const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const { user, signOut } = useAuth();
 
   useEffect(() => {
+    if (user) {
+      loadDashboardData();
+    }
+    
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 600,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [user]);
 
-  const dashboardStats = {
-    totalDrivers: 342,
-    activeDrivers: 89,
-    totalPassengers: 12847,
-    activeRides: 23,
-    todayRevenue: 8567.25,
-    pendingApplications: 15,
-    completedTrips: 1847,
-    averageRating: 4.7,
+  const loadDashboardData = async () => {
+    try {
+      // Load drivers data
+      const { data: allDrivers } = await driversTable().select('*');
+      const activeDrivers = allDrivers?.filter(d => d.status === 'active') || [];
+      
+      // Load passengers data
+      const { data: allPassengers } = await passengersTable().select('*');
+      
+      // Load rides data
+      const { data: allRides } = await ridesTable().select('*');
+      const activeRides = allRides?.filter(r => r.status === 'active') || [];
+      const completedRides = allRides?.filter(r => r.status === 'completed') || [];
+      
+      // Calculate today's revenue
+      const today = new Date();
+      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
+      const { data: todayRides } = await ridesTable()
+        .select('fare')
+        .eq('status', 'completed')
+        .gte('completed_at', startOfDay);
+      
+      const todayRevenue = todayRides?.reduce((sum, ride) => sum + (ride.fare || 0), 0) || 0;
+      
+      // Load pending applications
+      const { data: applications } = await supabase
+        .from('driver_applications')
+        .select('*')
+        .eq('status', 'pending');
+      
+      // Calculate average rating
+      const driversWithRating = allDrivers?.filter(d => d.rating && d.rating > 0) || [];
+      const averageRating = driversWithRating.length > 0 
+        ? driversWithRating.reduce((sum, d) => sum + (d.rating || 0), 0) / driversWithRating.length
+        : 0;
+      
+      setDashboardStats({
+        totalDrivers: allDrivers?.length || 0,
+        activeDrivers: activeDrivers.length,
+        totalPassengers: allPassengers?.length || 0,
+        activeRides: activeRides.length,
+        todayRevenue,
+        pendingApplications: applications?.length || 0,
+        completedTrips: completedRides.length,
+        averageRating,
+      });
+      
+      // Load recent activities from database
+      await loadRecentActivities();
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const recentActivities = [
-    {
-      id: '1',
-      type: 'application',
-      message: 'New driver application from John Smith',
-      time: '5 min ago',
-      status: 'pending',
-    },
-    {
-      id: '2',
-      type: 'ride',
-      message: 'High demand in Downtown area',
-      time: '12 min ago',
-      status: 'active',
-    },
-    {
-      id: '3',
-      type: 'driver',
-      message: 'Driver Sarah Johnson went online',
-      time: '18 min ago',
-      status: 'success',
-    },
-    {
-      id: '4',
-      type: 'system',
-      message: 'System maintenance completed',
-      time: '1 hour ago',
-      status: 'success',
-    },
-  ];
+  const loadRecentActivities = async () => {
+    try {
+      const activities = [];
+      
+      // Recent driver applications
+      const { data: recentApps } = await supabase
+        .from('driver_applications')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(3);
+      
+      recentApps?.forEach(app => {
+        activities.push({
+          id: `app-${app.id}`,
+          type: 'application',
+          message: `New driver application from ${app.full_name}`,
+          time: getTimeAgo(app.created_at),
+          status: app.status,
+        });
+      });
+      
+      // Recent rides
+      const { data: recentRides } = await ridesTable()
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(3);
+      
+      recentRides?.forEach(ride => {
+        activities.push({
+          id: `ride-${ride.id}`,
+          type: 'ride',
+          message: `Ride ${ride.status} - ${ride.pickup_location}`,
+          time: getTimeAgo(ride.created_at!),
+          status: ride.status,
+        });
+      });
+      
+      // Recent driver status changes
+      const { data: recentDrivers } = await driversTable()
+        .select('*')
+        .order('last_active', { ascending: false })
+        .limit(2);
+      
+      recentDrivers?.forEach(driver => {
+        activities.push({
+          id: `driver-${driver.id}`,
+          type: 'driver',
+          message: `Driver ${driver.name} went ${driver.status}`,
+          time: getTimeAgo(driver.last_active!),
+          status: driver.status,
+        });
+      });
+      
+      // Sort all activities by time and take the most recent
+      setRecentActivities(activities.slice(0, 4));
+    } catch (error) {
+      console.error('Error loading recent activities:', error);
+    }
+  };
+
+  const getTimeAgo = (dateString: string) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min ago`;
+    
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -121,6 +233,17 @@ export default function AdminDashboard() {
         return '#F3F4F6';
     }
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading dashboard...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -290,6 +413,15 @@ export default function AdminDashboard() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+  },
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',

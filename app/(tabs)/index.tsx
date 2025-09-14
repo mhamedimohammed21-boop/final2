@@ -201,6 +201,31 @@ export default function HomeScreen() {
     }).start();
   }, []);
 
+  // Update notification count from database
+  useEffect(() => {
+    const loadNotificationCount = async () => {
+      if (user) {
+        try {
+          // In a real app, you'd have a notifications table
+          // For now, we'll use a simple calculation based on recent activity
+          const { data: recentRides } = await supabase
+            .from('rides')
+            .select('*')
+            .eq('passenger_id', user.id)
+            .eq('status', 'completed')
+            .is('rating', null) // Rides that haven't been rated yet
+            .limit(10);
+          
+          setUnreadNotificationsCount(recentRides?.length || 0);
+        } catch (error) {
+          console.error('Error loading notification count:', error);
+        }
+      }
+    };
+    
+    loadNotificationCount();
+  }, [user]);
+
   const getCurrentLocation = async () => {
     try {
       let { status } = await Location.requestForegroundPermissionsAsync();

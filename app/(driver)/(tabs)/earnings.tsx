@@ -11,48 +11,150 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DollarSign, TrendingUp, Calendar, Clock, Car, ChartBar as BarChart3, Target, Award } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '@/hooks/useAuth';
+import { driversTable, ridesTable } from '@/lib/typedSupabase';
+import { Database } from '@/types/database';
+
+type Driver = Database['public']['Tables']['drivers']['Row'];
+type Ride = Database['public']['Tables']['rides']['Row'];
 
 export default function DriverEarnings() {
   const [selectedPeriod, setSelectedPeriod] = useState('today');
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [driverData, setDriverData] = useState<Driver | null>(null);
+  const [earningsData, setEarningsData] = useState({
+    today: { total: 0, trips: 0, hours: 0, bonus: 0 },
+    week: { total: 0, trips: 0, hours: 0, bonus: 0 },
+    month: { total: 0, trips: 0, hours: 0, bonus: 0 }
+  });
+  const [recentTrips, setRecentTrips] = useState<Ride[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
+    if (user) {
+      loadDriverEarnings();
+    }
+    
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 600,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [user]);
 
-  const earningsData = {
-    today: {
-      total: 127.50,
-      trips: 8,
-      hours: 6.5,
-      bonus: 15.00,
-    },
-    week: {
-      total: 892.30,
-      trips: 47,
-      hours: 32.5,
-      bonus: 85.00,
-    },
-    month: {
-      total: 3456.80,
-      trips: 189,
-      hours: 128.5,
-      bonus: 245.00,
+  const loadDriverEarnings = async () => {
+    if (!user) return;
+    
+    try {
+      // Load driver data
+      const { data: drivers, error: driverError } = await driversTable()
+        .select('*')
+        .eq('email', user.email!);
+      
+      if (driverError) throw driverError;
+      
+      if (drivers && drivers.length > 0) {
+        const driver = drivers[0];
+        setDriverData(driver);
+        
+        // Load earnings for different periods
+        await loadEarningsForPeriods(driver.id);
+        await loadRecentTrips(driver.id);
+      }
+    } catch (error) {
+      console.error('Error loading driver earnings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadEarningsForPeriods = async (driverId: string) => {
+    try {
+      const now = new Date();
+      
+      // Today
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const { data: todayRides } = await ridesTable()
+        .select('fare, duration')
+        .eq('driver_id', driverId)
+        .eq('status', 'completed')
+        .gte('completed_at', startOfDay);
+      
+      // This week
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+      const { data: weekRides } = await ridesTable()
+        .select('fare, duration')
+        .eq('driver_id', driverId)
+        .eq('status', 'completed')
+        .gte('completed_at', startOfWeek.toISOString());
+      
+      // This month
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const { data: monthRides } = await ridesTable()
+        .select('fare, duration')
+        .eq('driver_id', driverId)
+        .eq('status', 'completed')
+        .gte('completed_at', startOfMonth);
+      
+      // Calculate earnings
+      const calculateStats = (rides: any[]) => {
+        const total = rides.reduce((sum, ride) => sum + (ride.fare || 0), 0);
+        const trips = rides.length;
+        const totalMinutes = rides.reduce((sum, ride) => sum + (ride.duration || 0), 0);
+        const hours = totalMinutes / 60;
+        const bonus = total * 0.1; // 10% bonus calculation
+        
+        return { total, trips, hours, bonus };
+      };
+      
+      setEarningsData({
+        today: calculateStats(todayRides || []),
+        week: calculateStats(weekRides || []),
+        month: calculateStats(monthRides || [])
+      });
+    } catch (error) {
+      console.error('Error loading earnings data:', error);
+    }
+  };
+
+  const loadRecentTrips = async (driverId: string) => {
+    try {
+      const { data: trips, error } = await ridesTable()
+        .select('*')
+        .eq('driver_id', driverId)
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: false })
+        .limit(10);
+      
+      if (error) throw error;
+      setRecentTrips(trips || []);
+    } catch (error) {
+      console.error('Error loading recent trips:', error);
     }
   };
 
   const currentData = earningsData[selectedPeriod as keyof typeof earningsData];
 
-  const recentTrips = [
-    { id: '1', time: '2:30 PM', from: 'Downtown', to: 'Airport', fare: 28.50, tip: 5.00 },
-    { id: '2', time: '1:45 PM', from: 'Mall', to: 'University', fare: 15.75, tip: 2.25 },
-    { id: '3', time: '12:20 PM', from: 'Hotel', to: 'Station', fare: 22.00, tip: 4.00 },
-    { id: '4', time: '11:15 AM', from: 'Office', to: 'Restaurant', fare: 18.25, tip: 3.50 },
-  ];
+  const formatTripTime = (completedAt: string) => {
+    return new Date(completedAt).toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading earnings...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -167,19 +269,21 @@ export default function DriverEarnings() {
             {recentTrips.map((trip) => (
               <View key={trip.id} style={styles.tripCard}>
                 <View style={styles.tripHeader}>
-                  <Text style={styles.tripTime}>{trip.time}</Text>
+                  <Text style={styles.tripTime}>
+                    {trip.completed_at ? formatTripTime(trip.completed_at) : 'N/A'}
+                  </Text>
                   <Text style={styles.tripEarnings}>
-                    ${(trip.fare + trip.tip).toFixed(2)}
+                    ${(trip.fare || 0).toFixed(2)}
                   </Text>
                 </View>
                 <View style={styles.tripRoute}>
-                  <Text style={styles.tripLocation}>{trip.from}</Text>
+                  <Text style={styles.tripLocation}>{trip.pickup_location}</Text>
                   <View style={styles.tripArrow} />
-                  <Text style={styles.tripLocation}>{trip.to}</Text>
+                  <Text style={styles.tripLocation}>{trip.dropoff_location}</Text>
                 </View>
                 <View style={styles.tripBreakdown}>
-                  <Text style={styles.tripFare}>Fare: ${trip.fare.toFixed(2)}</Text>
-                  <Text style={styles.tripTip}>Tip: ${trip.tip.toFixed(2)}</Text>
+                  <Text style={styles.tripFare}>Fare: ${(trip.fare || 0).toFixed(2)}</Text>
+                  <Text style={styles.tripTip}>Distance: {(trip.distance || 0).toFixed(1)} km</Text>
                 </View>
               </View>
             ))}
@@ -217,6 +321,15 @@ export default function DriverEarnings() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+  },
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',

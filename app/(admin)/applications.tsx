@@ -12,63 +12,47 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, FileText, User, Car, CircleCheck as CheckCircle, Circle as XCircle, Clock, Eye } from 'lucide-react-native';
 import { router } from 'expo-router';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/typedSupabase';
+import { Database } from '@/types/database';
+
+type DriverApplication = Database['public']['Tables']['driver_applications']['Row'];
 
 export default function AdminApplications() {
-  const [applications, setApplications] = useState([]);
+  const [applications, setApplications] = useState<DriverApplication[]>([]);
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
-    loadApplications();
+    if (user) {
+      loadApplications();
+    }
     
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 600,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [user]);
 
-  const loadApplications = () => {
-    // Mock applications data
-    const mockApplications = [
-      {
-        id: '1',
-        full_name: 'John Smith',
-        email: 'john.smith@email.com',
-        phone: '+1 (555) 123-4567',
-        vehicle_type: 'economy',
-        vehicle_year: '2022',
-        vehicle_color: 'Silver',
-        license_plate: 'ABC 123',
-        status: 'pending',
-        created_at: new Date().toISOString(),
-        documents: {
-          license_uploaded: true,
-          insurance_uploaded: true,
-          vehicle_registration_uploaded: false,
-        }
-      },
-      {
-        id: '2',
-        full_name: 'Sarah Johnson',
-        email: 'sarah.j@email.com',
-        phone: '+1 (555) 987-6543',
-        vehicle_type: 'comfort',
-        vehicle_year: '2021',
-        vehicle_color: 'Black',
-        license_plate: 'XYZ 789',
-        status: 'under_review',
-        created_at: new Date(Date.now() - 86400000).toISOString(),
-        documents: {
-          license_uploaded: true,
-          insurance_uploaded: true,
-          vehicle_registration_uploaded: true,
-        }
-      },
-    ];
-    setApplications(mockApplications);
+  const loadApplications = async () => {
+    try {
+      const { data: apps, error } = await supabase
+        .from('driver_applications')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setApplications(apps || []);
+    } catch (error) {
+      console.error('Error loading applications:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleApproveApplication = (applicationId: string) => {
+  const handleApproveApplication = async (applicationId: string) => {
     Alert.alert(
       'Approve Application',
       'Are you sure you want to approve this driver application?',
@@ -76,16 +60,32 @@ export default function AdminApplications() {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Approve',
-          onPress: () => {
-            Alert.alert('Success', 'Driver application approved successfully!');
-            loadApplications();
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('driver_applications')
+                .update({ 
+                  status: 'approved',
+                  reviewed_by: user!.id,
+                  reviewed_at: new Date().toISOString()
+                })
+                .eq('id', applicationId);
+              
+              if (error) throw error;
+              
+              Alert.alert('Success', 'Driver application approved successfully!');
+              loadApplications();
+            } catch (error) {
+              console.error('Error approving application:', error);
+              Alert.alert('Error', 'Failed to approve application');
+            }
           },
         },
       ]
     );
   };
 
-  const handleRejectApplication = (applicationId: string) => {
+  const handleRejectApplication = async (applicationId: string) => {
     Alert.alert(
       'Reject Application',
       'Are you sure you want to reject this application?',
@@ -94,9 +94,25 @@ export default function AdminApplications() {
         {
           text: 'Reject',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert('Application Rejected', 'The applicant will be notified.');
-            loadApplications();
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('driver_applications')
+                .update({ 
+                  status: 'rejected',
+                  reviewed_by: user!.id,
+                  reviewed_at: new Date().toISOString()
+                })
+                .eq('id', applicationId);
+              
+              if (error) throw error;
+              
+              Alert.alert('Application Rejected', 'The applicant will be notified.');
+              loadApplications();
+            } catch (error) {
+              console.error('Error rejecting application:', error);
+              Alert.alert('Error', 'Failed to reject application');
+            }
           },
         },
       ]
@@ -133,6 +149,17 @@ export default function AdminApplications() {
     }
   };
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading applications...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -156,7 +183,7 @@ export default function AdminApplications() {
           </View>
         ) : (
           <View style={styles.applicationsList}>
-            {applications.map((app: any) => (
+            {applications.map((app) => (
               <View key={app.id} style={styles.applicationCard}>
                 <View style={styles.applicationHeader}>
                   <View style={styles.applicantInfo}>
@@ -184,7 +211,7 @@ export default function AdminApplications() {
                   <View style={styles.detailRow}>
                     <FileText size={16} color="#6B7280" />
                     <Text style={styles.detailText}>
-                      Documents: {Object.values(app.documents).filter(Boolean).length}/3 uploaded
+                      Documents: {app.documents ? Object.values(app.documents).filter(Boolean).length : 0}/3 uploaded
                     </Text>
                   </View>
                 </View>
@@ -217,6 +244,15 @@ export default function AdminApplications() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+  },
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',

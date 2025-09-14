@@ -18,51 +18,66 @@ import {
   Navigation,
   Filter
 } from 'lucide-react-native';
+import { useAuth } from '@/hooks/useAuth';
+import { driversTable, ridesTable } from '@/lib/typedSupabase';
+import { Database } from '@/types/database';
+
+type Driver = Database['public']['Tables']['drivers']['Row'];
+type Ride = Database['public']['Tables']['rides']['Row'];
 
 export default function DriverTrips() {
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [driverData, setDriverData] = useState<Driver | null>(null);
+  const [trips, setTrips] = useState<Ride[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
+    if (user) {
+      loadDriverTrips();
+    }
+    
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 600,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [user]);
 
-  const trips = [
-    {
-      id: '1',
-      passenger: 'John Smith',
-      pickup: '123 Main St, Downtown',
-      destination: '456 Oak Ave, Uptown',
-      date: '2024-01-15',
-      time: '2:30 PM',
-      fare: 28.50,
-      tip: 5.00,
-      distance: '3.2 km',
-      duration: '18 min',
-      status: 'completed',
-      rating: 5,
-    },
-    {
-      id: '2',
-      passenger: 'Sarah Johnson',
-      pickup: '789 Pine St, Mall Area',
-      destination: '321 University Ave',
-      date: '2024-01-15',
-      time: '1:45 PM',
-      fare: 15.75,
-      tip: 2.25,
-      distance: '2.1 km',
-      duration: '12 min',
-      status: 'completed',
-      rating: 4,
-    },
-  ];
+  const loadDriverTrips = async () => {
+    if (!user) return;
+    
+    try {
+      // Load driver data
+      const { data: drivers, error: driverError } = await driversTable()
+        .select('*')
+        .eq('email', user.email!);
+      
+      if (driverError) throw driverError;
+      
+      if (drivers && drivers.length > 0) {
+        const driver = drivers[0];
+        setDriverData(driver);
+        
+        // Load driver's trips
+        const { data: driverTrips, error: tripsError } = await ridesTable()
+          .select('*')
+          .eq('driver_id', driver.id)
+          .order('created_at', { ascending: false });
+        
+        if (tripsError) throw tripsError;
+        setTrips(driverTrips || []);
+      }
+    } catch (error) {
+      console.error('Error loading driver trips:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'N/A';
     const date = new Date(dateString);
     const today = new Date();
     const yesterday = new Date(today);
@@ -77,10 +92,29 @@ export default function DriverTrips() {
     }
   };
 
+  const formatTime = (dateString: string | null) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  };
+
   const filteredTrips = trips.filter(trip => {
     if (selectedFilter === 'all') return true;
     return trip.status === selectedFilter;
   });
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading trips...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -144,14 +178,14 @@ export default function DriverTrips() {
             <View style={styles.statCard}>
               <DollarSign size={20} color="#10B981" />
               <Text style={styles.statValue}>
-                ${trips.reduce((sum, trip) => sum + trip.fare + trip.tip, 0).toFixed(0)}
+                ${trips.reduce((sum, trip) => sum + (trip.fare || 0), 0).toFixed(0)}
               </Text>
               <Text style={styles.statLabel}>Total Earned</Text>
             </View>
             <View style={styles.statCard}>
               <Star size={20} color="#F59E0B" />
               <Text style={styles.statValue}>
-                {(trips.reduce((sum, trip) => sum + trip.rating, 0) / trips.length).toFixed(1)}
+                {driverData?.rating?.toFixed(1) || '0.0'}
               </Text>
               <Text style={styles.statLabel}>Avg Rating</Text>
             </View>
@@ -174,27 +208,24 @@ export default function DriverTrips() {
                 <TouchableOpacity key={trip.id} style={styles.tripCard}>
                   <View style={styles.tripHeader}>
                     <View style={styles.tripInfo}>
-                      <Text style={styles.passengerName}>{trip.passenger}</Text>
-                      <View style={styles.tripRating}>
-                        <Star size={12} color="#F59E0B" fill="#F59E0B" />
-                        <Text style={styles.ratingText}>{trip.rating}</Text>
-                      </View>
+                      <Text style={styles.passengerName}>Passenger</Text>
+                      <Text style={styles.tripStatus}>{trip.status}</Text>
                     </View>
                     <View style={styles.tripEarnings}>
-                      <Text style={styles.fareAmount}>${(trip.fare + trip.tip).toFixed(2)}</Text>
-                      <Text style={styles.tripTime}>{trip.time}</Text>
+                      <Text style={styles.fareAmount}>${(trip.fare || 0).toFixed(2)}</Text>
+                      <Text style={styles.tripTime}>{formatTime(trip.completed_at)}</Text>
                     </View>
                   </View>
 
                   <View style={styles.tripRoute}>
                     <View style={styles.routeItem}>
                       <View style={[styles.routeDot, { backgroundColor: '#10B981' }]} />
-                      <Text style={styles.routeText}>{trip.pickup}</Text>
+                      <Text style={styles.routeText}>{trip.pickup_location}</Text>
                     </View>
                     <View style={styles.routeLine} />
                     <View style={styles.routeItem}>
                       <View style={[styles.routeDot, { backgroundColor: '#DC2626' }]} />
-                      <Text style={styles.routeText}>{trip.destination}</Text>
+                      <Text style={styles.routeText}>{trip.dropoff_location}</Text>
                     </View>
                   </View>
 
@@ -202,25 +233,25 @@ export default function DriverTrips() {
                     <View style={styles.tripMetrics}>
                       <View style={styles.metricItem}>
                         <Navigation size={12} color="#6B7280" />
-                        <Text style={styles.metricText}>{trip.distance}</Text>
+                        <Text style={styles.metricText}>{(trip.distance || 0).toFixed(1)} km</Text>
                       </View>
                       <View style={styles.metricItem}>
                         <Clock size={12} color="#6B7280" />
-                        <Text style={styles.metricText}>{trip.duration}</Text>
+                        <Text style={styles.metricText}>{trip.duration || 0} min</Text>
                       </View>
                     </View>
-                    <Text style={styles.tripDate}>{formatDate(trip.date)}</Text>
+                    <Text style={styles.tripDate}>{formatDate(trip.created_at)}</Text>
                   </View>
 
                   <View style={styles.tripBreakdown}>
                     <View style={styles.breakdownItem}>
                       <Text style={styles.breakdownLabel}>Fare</Text>
-                      <Text style={styles.breakdownValue}>${trip.fare.toFixed(2)}</Text>
+                      <Text style={styles.breakdownValue}>${(trip.fare || 0).toFixed(2)}</Text>
                     </View>
                     <View style={styles.breakdownItem}>
-                      <Text style={styles.breakdownLabel}>Tip</Text>
+                      <Text style={styles.breakdownLabel}>Distance</Text>
                       <Text style={[styles.breakdownValue, styles.tipValue]}>
-                        ${trip.tip.toFixed(2)}
+                        {(trip.distance || 0).toFixed(1)} km
                       </Text>
                     </View>
                   </View>
@@ -235,6 +266,15 @@ export default function DriverTrips() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+  },
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
@@ -400,15 +440,11 @@ const styles = StyleSheet.create({
     color: '#111827',
     marginBottom: 4,
   },
-  tripRating: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  ratingText: {
+  tripStatus: {
     fontSize: 12,
-    color: '#F59E0B',
+    color: '#6B7280',
     fontWeight: '500',
+    textTransform: 'capitalize',
   },
   tripEarnings: {
     alignItems: 'flex-end',

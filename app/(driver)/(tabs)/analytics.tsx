@@ -11,43 +11,173 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TrendingUp, Calendar, Clock, Star, Target, Award, Users, MapPin } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '@/hooks/useAuth';
+import { driversTable, ridesTable } from '@/lib/typedSupabase';
+import { Database } from '@/types/database';
+
+type Driver = Database['public']['Tables']['drivers']['Row'];
+type Ride = Database['public']['Tables']['rides']['Row'];
 
 export default function DriverAnalytics() {
   const [selectedPeriod, setSelectedPeriod] = useState('week');
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [driverData, setDriverData] = useState<Driver | null>(null);
+  const [analyticsData, setAnalyticsData] = useState({
+    week: {
+      totalEarnings: 0,
+      totalTrips: 0,
+      averageRating: 0,
+      acceptanceRate: 0,
+      completionRate: 0,
+      onlineHours: 0,
+      peakHours: [] as string[],
+      topAreas: [] as string[],
+    },
+    month: {
+      totalEarnings: 0,
+      totalTrips: 0,
+      averageRating: 0,
+      acceptanceRate: 0,
+      completionRate: 0,
+      onlineHours: 0,
+      peakHours: [] as string[],
+      topAreas: [] as string[],
+    }
+  });
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
+    if (user) {
+      loadAnalyticsData();
+    }
+    
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 600,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [user]);
 
-  const analyticsData = {
-    week: {
-      totalEarnings: 892.30,
-      totalTrips: 47,
-      averageRating: 4.8,
-      acceptanceRate: 92,
-      completionRate: 98,
-      onlineHours: 32.5,
-      peakHours: ['7-9 AM', '5-7 PM'],
-      topAreas: ['Downtown', 'Airport', 'University'],
-    },
-    month: {
-      totalEarnings: 3456.80,
-      totalTrips: 189,
-      averageRating: 4.7,
-      acceptanceRate: 89,
-      completionRate: 96,
-      onlineHours: 128.5,
-      peakHours: ['7-9 AM', '5-7 PM', '10-12 PM'],
-      topAreas: ['Downtown', 'Airport', 'Mall District'],
+  const loadAnalyticsData = async () => {
+    if (!user) return;
+    
+    try {
+      // Load driver data
+      const { data: drivers, error: driverError } = await driversTable()
+        .select('*')
+        .eq('email', user.email!);
+      
+      if (driverError) throw driverError;
+      
+      if (drivers && drivers.length > 0) {
+        const driver = drivers[0];
+        setDriverData(driver);
+        
+        // Load analytics for different periods
+        await loadPeriodAnalytics(driver.id);
+      }
+    } catch (error) {
+      console.error('Error loading analytics data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadPeriodAnalytics = async (driverId: string) => {
+    try {
+      const now = new Date();
+      
+      // This week
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+      
+      const { data: weekTrips } = await ridesTable()
+        .select('*')
+        .eq('driver_id', driverId)
+        .gte('created_at', startOfWeek.toISOString());
+      
+      // This month
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const { data: monthTrips } = await ridesTable()
+        .select('*')
+        .eq('driver_id', driverId)
+        .gte('created_at', startOfMonth);
+      
+      // Calculate analytics
+      const calculatePeriodStats = (trips: Ride[]) => {
+        const completedTrips = trips.filter(trip => trip.status === 'completed');
+        const totalEarnings = completedTrips.reduce((sum, trip) => sum + (trip.fare || 0), 0);
+        const totalTrips = trips.length;
+        const completedCount = completedTrips.length;
+        const acceptanceRate = totalTrips > 0 ? Math.round((completedCount / totalTrips) * 100) : 0;
+        const completionRate = totalTrips > 0 ? Math.round((completedCount / totalTrips) * 100) : 0;
+        
+        // Calculate online hours from trip durations
+        const totalMinutes = completedTrips.reduce((sum, trip) => sum + (trip.duration || 0), 0);
+        const onlineHours = totalMinutes / 60;
+        
+        // Analyze peak hours from trip times
+        const hourCounts: { [key: string]: number } = {};
+        completedTrips.forEach(trip => {
+          if (trip.created_at) {
+            const hour = new Date(trip.created_at).getHours();
+            const timeSlot = hour < 12 ? `${hour}-${hour + 1} AM` : `${hour - 12 || 12}-${hour - 11} PM`;
+            hourCounts[timeSlot] = (hourCounts[timeSlot] || 0) + 1;
+          }
+        });
+        
+        const peakHours = Object.entries(hourCounts)
+          .sort(([,a], [,b]) => b - a)
+          .slice(0, 3)
+          .map(([hour]) => hour);
+        
+        // Analyze top pickup areas
+        const areaCounts: { [key: string]: number } = {};
+        completedTrips.forEach(trip => {
+          const area = trip.pickup_location.split(',')[0] || 'Unknown';
+          areaCounts[area] = (areaCounts[area] || 0) + 1;
+        });
+        
+        const topAreas = Object.entries(areaCounts)
+          .sort(([,a], [,b]) => b - a)
+          .slice(0, 3)
+          .map(([area]) => area);
+        
+        return {
+          totalEarnings,
+          totalTrips,
+          averageRating: driverData?.rating || 0,
+          acceptanceRate,
+          completionRate,
+          onlineHours,
+          peakHours,
+          topAreas,
+        };
+      };
+      
+      setAnalyticsData({
+        week: calculatePeriodStats(weekTrips || []),
+        month: calculatePeriodStats(monthTrips || [])
+      });
+    } catch (error) {
+      console.error('Error loading period analytics:', error);
     }
   };
 
   const currentData = analyticsData[selectedPeriod as keyof typeof analyticsData];
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading analytics...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -199,6 +329,15 @@ export default function DriverAnalytics() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+  },
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',

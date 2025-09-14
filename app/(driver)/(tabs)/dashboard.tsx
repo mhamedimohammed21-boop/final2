@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Car, DollarSign, Clock, MapPin, Star, Navigation, Phone, MessageCircle, Settings, ChartBar as BarChart3, User, Zap, Shield } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/hooks/useAuth';
-import { driversTable, ridesTable } from '@/lib/typedSupabase';
+import { driversTable, ridesTable, supabase } from '@/lib/typedSupabase';
 import { Database } from '@/types/database';
 import MapView from '@/components/MapView';
 
@@ -27,9 +27,9 @@ export default function DriverDashboard() {
   const [pendingRideRequest, setPendingRideRequest] = useState<Ride | null>(null);
   const [driverData, setDriverData] = useState<Driver | null>(null);
   const [fadeAnim] = useState(new Animated.Value(0));
-  const [todayEarnings, setTodayEarnings] = useState(127.50);
-  const [todayTrips, setTodayTrips] = useState(8);
-  const [rating, setRating] = useState(4.8);
+  const [todayEarnings, setTodayEarnings] = useState(0);
+  const [todayTrips, setTodayTrips] = useState(0);
+  const [rating, setRating] = useState(0);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
@@ -62,9 +62,8 @@ export default function DriverDashboard() {
         setIsOnline(driver.status === 'active');
         setRating(driver.rating || 4.8);
         
-        // Calculate today's stats from driver data
-        setTodayEarnings(driver.earnings || 0);
-        setTodayTrips(driver.total_rides || 0);
+        // Load today's earnings and trips from rides table
+        await loadTodayStats(driver.id);
       }
     } catch (error) {
       console.error('Error loading driver data:', error);
@@ -73,8 +72,32 @@ export default function DriverDashboard() {
     }
   };
 
+  const loadTodayStats = async (driverId: string) => {
+    try {
+      const today = new Date();
+      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
+      
+      // Get today's completed rides
+      const { data: todayRides, error } = await ridesTable()
+        .select('fare')
+        .eq('driver_id', driverId)
+        .eq('status', 'completed')
+        .gte('completed_at', startOfDay);
+      
+      if (error) throw error;
+      
+      if (todayRides) {
+        const earnings = todayRides.reduce((sum, ride) => sum + (ride.fare || 0), 0);
+        setTodayEarnings(earnings);
+        setTodayTrips(todayRides.length);
+      }
+    } catch (error) {
+      console.error('Error loading today stats:', error);
+    }
+  };
+
   const loadRideRequests = async () => {
-    if (!user || !driverData) return;
+    if (!driverData) return;
     
     try {
       // Check for pending ride requests assigned to this driver
@@ -89,12 +112,7 @@ export default function DriverDashboard() {
       
       if (rides && rides.length > 0) {
         const ride = rides[0];
-        // If ride is just assigned, show as request; if in progress, show as current
-        if (ride.eta && ride.eta !== '0 min') {
-          setPendingRideRequest(ride);
-        } else {
-          setCurrentRide(ride);
-        }
+        setCurrentRide(ride);
       }
       
       // Also check for unassigned rides if driver is online
