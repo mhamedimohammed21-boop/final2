@@ -7,36 +7,46 @@ import { Database } from '../lib/database.types';
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [userType, setUserType] = useState<UserType | null>(null);
+  const [userType, setUserType] = useState<UserType>('passenger');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
-      setUserType('passenger'); // Default fallback
+      setUserType('passenger');
       setLoading(false);
       return;
     }
 
-    // Get initial session and fetch user type
+    // Get initial session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       
-      // Skip profile fetching due to RLS recursion - default to passenger
-      setUserType('passenger');
+      if (session?.user) {
+        // Get user type from user metadata
+        const userTypeFromMeta = session.user.user_metadata?.user_type as UserType;
+        setUserType(userTypeFromMeta || 'passenger');
+      } else {
+        setUserType('passenger');
+      }
       
       setLoading(false);
     });
 
-    // Listen for auth changes
+    // Listen for auth state changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       
-      // Skip profile fetching due to RLS recursion - default to passenger
-      setUserType(session?.user ? 'passenger' : null);
+      if (session?.user) {
+        // Get user type from user metadata
+        const userTypeFromMeta = session.user.user_metadata?.user_type as UserType;
+        setUserType(userTypeFromMeta || 'passenger');
+      } else {
+        setUserType('passenger');
+      }
       
       setLoading(false);
     });
@@ -44,29 +54,6 @@ export function useAuth() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchUserType = async (userId: string) => {
-    try {
-      console.log('[useAuth] Fetching user type for:', userId);
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('user_type')
-        .eq('user_id', userId)
-        .single();
-
-      if (error) {
-        console.error('[useAuth] Error fetching profile:', error);
-        // Default to passenger on error
-        setUserType('passenger');
-        return;
-      }
-
-      console.log('[useAuth] User type fetched:', data?.user_type);
-      setUserType(data?.user_type || 'passenger');
-    } catch (error) {
-      console.error('[useAuth] Exception fetching user type:', error);
-      setUserType('passenger');
-    }
-  };
   const signIn = async (email: string, password: string) => {
     if (!isSupabaseConfigured()) {
       throw new Error('Supabase is not configured. Please set up your Supabase credentials.');
@@ -96,31 +83,8 @@ export function useAuth() {
     });
 
     if (data.user && !error) {
-      // Create user profile with user type
-      try {
-        // Try to create or update profile
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert({
-            user_id: data.user.id,
-            email: data.user.email!,
-            full_name: fullName,
-            user_type: userType,
-          }, {
-            onConflict: 'user_id'
-          });
-        
-        if (profileError) {
-          console.error('[useAuth] Profile creation error:', profileError);
-          console.error('[useAuth] Failed to create profile, but continuing with signup');
-        } else {
-          console.log('[useAuth] Profile created successfully with user type:', userType);
-          setUserType(userType);
-        }
-      } catch (err) {
-        console.error('[useAuth] Error creating profile:', err);
-        // Don't throw error - allow signup to continue even if profile creation fails
-      }
+      // User type is stored in user metadata, no need for separate profile table
+      setUserType(userType);
     }
 
     return { data, error };

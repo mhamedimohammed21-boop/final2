@@ -277,33 +277,20 @@ export class RideService {
 
   // Ensure passenger record exists and return passenger ID
   private async ensurePassengerExists(userId: string): Promise<string> {
-    // Get user info for passenger creation
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('email, full_name')
-      .eq('user_id', userId)
-      .maybeSingle();
-    
-    // If profile doesn't exist, get user info from auth.users
+    // Get user info from auth.users directly
     let userEmail = '';
     let userName = '';
     
-    if (profileError || !profile) {
-      console.log('Profile not found, getting user from auth.users');
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError || !user) {
-        console.error('Error getting user from auth:', userError);
-        // Use fallback values
-        userEmail = 'user@example.com';
-        userName = 'User';
-      } else {
-        userEmail = user.email || 'user@example.com';
-        userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
-      }
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      console.error('Error getting user from auth:', userError);
+      // Use fallback values
+      userEmail = 'user@example.com';
+      userName = 'User';
     } else {
-      userEmail = profile.email || 'user@example.com';
-      userName = profile.full_name || profile.email?.split('@')[0] || 'User';
+      userEmail = user.email || 'user@example.com';
+      userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
     }
     
     // Use upsert to handle existing passengers gracefully
