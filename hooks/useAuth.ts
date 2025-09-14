@@ -22,10 +22,7 @@ export function useAuth() {
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        // Temporarily bypass profile fetching due to RLS recursion
-        // Default to passenger until database policies are fixed
-        console.log('[useAuth] Bypassing profile fetch due to RLS recursion - defaulting to passenger');
-        setUserType('passenger');
+        await fetchUserType(session.user.id);
       }
       
       setLoading(false);
@@ -39,10 +36,7 @@ export function useAuth() {
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        // Temporarily bypass profile fetching due to RLS recursion
-        // Default to passenger until database policies are fixed
-        console.log('[useAuth] Bypassing profile fetch due to RLS recursion - defaulting to passenger');
-        setUserType('passenger');
+        await fetchUserType(session.user.id);
       } else {
         setUserType(null);
       }
@@ -53,6 +47,29 @@ export function useAuth() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const fetchUserType = async (userId: string) => {
+    try {
+      console.log('[useAuth] Fetching user type for:', userId);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_type')
+        .eq('user_id', userId)
+        .single();
+
+      if (error) {
+        console.error('[useAuth] Error fetching profile:', error);
+        // Default to passenger on error
+        setUserType('passenger');
+        return;
+      }
+
+      console.log('[useAuth] User type fetched:', data?.user_type);
+      setUserType(data?.user_type || 'passenger');
+    } catch (error) {
+      console.error('[useAuth] Exception fetching user type:', error);
+      setUserType('passenger');
+    }
+  };
   const signIn = async (email: string, password: string) => {
     if (!isSupabaseConfigured()) {
       throw new Error('Supabase is not configured. Please set up your Supabase credentials.');
