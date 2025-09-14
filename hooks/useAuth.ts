@@ -23,14 +23,25 @@ export function useAuth() {
       
       if (session?.user) {
         // Fetch user profile to get user type
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('user_type')
-          .eq('user_id', session.user.id)
-          .single() as { data: { user_type: UserType } | null; error: any };
-        
-        if (profile?.user_type) {
-          setUserType(profile.user_type);
+        try {
+          const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('user_type')
+            .eq('user_id', session.user.id)
+            .single() as { data: { user_type: UserType } | null; error: any };
+          
+          if (error) {
+            console.error('Error fetching profile:', error);
+            // Fallback to passenger if profile fetch fails
+            setUserType('passenger');
+          } else if (profile?.user_type) {
+            setUserType(profile.user_type);
+          } else {
+            setUserType('passenger');
+          }
+        } catch (err) {
+          console.error('Profile fetch error:', err);
+          setUserType('passenger');
         }
       }
       
@@ -46,14 +57,25 @@ export function useAuth() {
       
       if (session?.user) {
         // Fetch user profile to get user type
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('user_type')
-          .eq('user_id', session.user.id)
-          .single() as { data: { user_type: UserType } | null; error: any };
-        
-        if (profile?.user_type) {
-          setUserType(profile.user_type);
+        try {
+          const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('user_type')
+            .eq('user_id', session.user.id)
+            .single() as { data: { user_type: UserType } | null; error: any };
+          
+          if (error) {
+            console.error('Error fetching profile:', error);
+            // Fallback to passenger if profile fetch fails
+            setUserType('passenger');
+          } else if (profile?.user_type) {
+            setUserType(profile.user_type);
+          } else {
+            setUserType('passenger');
+          }
+        } catch (err) {
+          console.error('Profile fetch error:', err);
+          setUserType('passenger');
         }
       } else {
         setUserType(null);
@@ -118,12 +140,13 @@ export function useAuth() {
             // Try to create profile without user_type as fallback
             const { error: fallbackError } = await supabase
               .from('profiles')
-              .insert({
+              .upsert({
                 user_id: data.user.id,
                 email: data.user.email!,
                 full_name: fullName,
-                rating: 5.0,
-                total_trips: 0,
+                user_type: userType,
+              }, {
+                onConflict: 'user_id'
               });
             
             if (fallbackError) {
