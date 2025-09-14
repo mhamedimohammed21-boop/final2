@@ -12,6 +12,7 @@ export function useAuth() {
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
+      setUserType('passenger'); // Default fallback
       setLoading(false);
       return;
     }
@@ -21,9 +22,8 @@ export function useAuth() {
       setSession(session);
       setUser(session?.user ?? null);
       
-      if (session?.user) {
-        await fetchUserType(session.user.id);
-      }
+      // Skip profile fetching due to RLS recursion - default to passenger
+      setUserType('passenger');
       
       setLoading(false);
     });
@@ -35,11 +35,8 @@ export function useAuth() {
       setSession(session);
       setUser(session?.user ?? null);
       
-      if (session?.user) {
-        await fetchUserType(session.user.id);
-      } else {
-        setUserType(null);
-      }
+      // Skip profile fetching due to RLS recursion - default to passenger
+      setUserType(session?.user ? 'passenger' : null);
       
       setLoading(false);
     });
