@@ -10,7 +10,7 @@ import {
   Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, FileText, User, Car, CheckCircle, XCircle, Clock, Eye } from 'lucide-react-native';
+import { ArrowLeft, FileText, User, Car, CircleCheck as CheckCircle, Circle as XCircle, Clock, Eye } from 'lucide-react-native';
 import { router } from 'expo-router';
 
 export default function AdminApplications() {
