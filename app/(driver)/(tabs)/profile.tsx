@@ -223,6 +223,7 @@ export default function DriverProfile() {
         );
       },
       color: '#3B82F6',
+      color: '#3B82F6',
     },
     {
       id: 'safety',
