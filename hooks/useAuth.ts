@@ -59,6 +59,7 @@ export function useAuth() {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+  }
   const signIn = async (email: string, password: string, userType?: UserType) => {
     if (!isSupabaseConfigured()) {
       throw new Error('Supabase is not configured. Please set up your Supabase credentials.');
