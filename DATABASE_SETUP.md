@@ -75,15 +75,15 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 -- Create policies
 CREATE POLICY "Users can view their own profile" 
   ON public.profiles FOR SELECT 
-  USING (user_id = current_setting('request.jwt.claims.sub', true)::uuid);
+  USING (user_id = auth.uid());
 
 CREATE POLICY "Users can update their own profile" 
   ON public.profiles FOR UPDATE 
-  USING (user_id = current_setting('request.jwt.claims.sub', true)::uuid);
+  USING (user_id = auth.uid());
 
 CREATE POLICY "Users can insert their own profile" 
   ON public.profiles FOR INSERT 
-  WITH CHECK (user_id = current_setting('request.jwt.claims.sub', true)::uuid);
+  WITH CHECK (user_id = auth.uid());
 
 -- Create function to handle profile creation on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
