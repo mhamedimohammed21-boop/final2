@@ -81,9 +81,12 @@ CREATE POLICY "Users can update their own profile"
   ON public.profiles FOR UPDATE 
   USING (user_id = auth.uid());
 
-CREATE POLICY "Users can insert their own profile" 
+CREATE POLICY "Allow profile inserts by service role and authenticated users" 
   ON public.profiles FOR INSERT 
-  WITH CHECK (user_id = auth.uid());
+  WITH CHECK (
+    (auth.role() = 'service_role') OR 
+    (user_id = auth.uid())
+  );
 
 -- Create function to handle profile creation on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
