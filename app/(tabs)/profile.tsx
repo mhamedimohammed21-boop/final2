@@ -56,37 +56,13 @@ export default function ProfileScreen() {
   const fetchProfile = async () => {
     if (!user) return;
     
+    // Use user data directly from auth instead of profiles table
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', user!.id)
-        .single();
-
-      if (error) {
-        setProfile({
-          id: user!.id,
-          user_id: user!.id,
-          email: user!.email || 'user@example.com',
-          full_name: user!.user_metadata?.full_name || 'John Doe',
-          phone: null,
-          avatar_url: null,
-          user_type: 'passenger',
-          rating: 5.0,
-          total_trips: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-      } else {
-        setProfile(data);
-      }
-    } catch (error) {
-      console.error('Error fetching profile:', error);
       setProfile({
         id: user!.id,
         user_id: user!.id,
         email: user!.email || 'user@example.com',
-        full_name: 'John Doe',
+        full_name: user!.user_metadata?.full_name || 'User',
         phone: null,
         avatar_url: null,
         user_type: userType || 'passenger',
@@ -95,6 +71,8 @@ export default function ProfileScreen() {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
+    } catch (error) {
+      console.error('Error setting profile:', error);
     } finally {
       setLoading(false);
     }

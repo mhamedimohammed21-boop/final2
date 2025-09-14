@@ -25,7 +25,9 @@ export function useAuth() {
       if (session?.user) {
         // Get user type from user metadata
         const userTypeFromMeta = session.user.user_metadata?.user_type as UserType;
-        setUserType(userTypeFromMeta || 'passenger');
+        const finalUserType = userTypeFromMeta || 'passenger';
+        console.log('Setting user type:', finalUserType, 'from metadata:', userTypeFromMeta);
+        setUserType(finalUserType);
       } else {
         setUserType('passenger');
       }
@@ -43,7 +45,9 @@ export function useAuth() {
       if (session?.user) {
         // Get user type from user metadata
         const userTypeFromMeta = session.user.user_metadata?.user_type as UserType;
-        setUserType(userTypeFromMeta || 'passenger');
+        const finalUserType = userTypeFromMeta || 'passenger';
+        console.log('Auth state changed - setting user type:', finalUserType, 'from metadata:', userTypeFromMeta);
+        setUserType(finalUserType);
       } else {
         setUserType('passenger');
       }
@@ -63,6 +67,13 @@ export function useAuth() {
       email,
       password,
     });
+    
+    // If user doesn't have user_type in metadata, default to passenger
+    if (data.user && !data.user.user_metadata?.user_type) {
+      console.log('User missing user_type, defaulting to passenger');
+      setUserType('passenger');
+    }
+    
     return { data, error };
   };
 
