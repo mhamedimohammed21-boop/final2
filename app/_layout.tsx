@@ -52,7 +52,7 @@ export default function RootLayout() {
         if (userType === 'admin') {
           router.replace('/(admin)/dashboard');
         } else if (userType === 'driver') {
-          router.replace('/(driver)/dashboard');
+          router.replace('/(driver)/(tabs)/dashboard');
         } else {
           // Default to passenger view
           router.replace('/(tabs)');
@@ -68,7 +68,7 @@ export default function RootLayout() {
       } else if (userType === 'driver' && (inTabsGroup || inAdminGroup)) {
         console.log('Driver in passenger section, redirecting to driver section');
         setTimeout(() => {
-          router.replace('/(driver)/dashboard');
+          router.replace('/(driver)/(tabs)/dashboard');
         }, 50);
       } else if (userType === 'passenger' && (inDriverGroup || inAdminGroup)) {
         console.log('Passenger in driver section, redirecting to passenger section');
