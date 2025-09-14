@@ -447,21 +447,7 @@ export default function DriverProfile() {
       id: 'passenger-mode',
       icon: User,
       label: 'Switch to Passenger Mode',
-      onPress: () => {
-        Alert.alert(
-          'Switch to Passenger Mode',
-          'You will be redirected to the passenger app. Continue?',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Continue',
-              onPress: () => {
-                router.replace('/(tabs)');
-              },
-            },
-          ]
-        );
-      },
+      onPress: handleSwitchToPassenger,
       color: '#3B82F6',
       color: '#3B82F6',
     },
@@ -469,14 +455,46 @@ export default function DriverProfile() {
       id: 'safety',
       icon: Shield,
       label: 'Safety Center',
-      onPress: () => Alert.alert('Safety', 'Access safety features and resources'),
+      onPress: () => {
+        Alert.alert(
+          'Safety Center',
+          'Choose a safety option:',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Emergency Contacts', 
+              onPress: () => Alert.alert('Emergency Contacts', 'Manage your emergency contacts in settings.') 
+            },
+            { 
+              text: 'Safety Toolkit', 
+              onPress: () => Alert.alert('Safety Toolkit', 'Access safety features and report issues.') 
+            },
+          ]
+        );
+      },
       color: '#DC2626',
     },
     {
       id: 'help',
       icon: HelpCircle,
       label: 'Help & Support',
-      onPress: () => Alert.alert('Help', 'Get help and support'),
+      onPress: () => {
+        Alert.alert(
+          'Help & Support',
+          'How can we help you?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Contact Support', 
+              onPress: () => Alert.alert('Contact Support', 'Email: support@rideshare.com\nPhone: 1-800-RIDESHARE') 
+            },
+            { 
+              text: 'FAQ', 
+              onPress: () => Alert.alert('FAQ', 'Frequently asked questions and troubleshooting guides.') 
+            },
+          ]
+        );
+      },
       color: '#059669',
     },
   ];
@@ -486,7 +504,8 @@ export default function DriverProfile() {
       key={item.id}
       style={styles.settingItem}
       onPress={item.onPress}
-      disabled={item.hasSwitch}
+      disabled={item.hasSwitch || !item.onPress}
+      activeOpacity={item.hasSwitch ? 1 : 0.7}
     >
       <View style={[styles.settingIcon, { backgroundColor: `${item.color}15` }]}>
         <item.icon size={20} color={item.color} />
