@@ -113,6 +113,13 @@ export default function DriverProfile() {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Update driver status to offline before signing out
+              if (driverData) {
+                await driversTable()
+                  .update({ status: 'inactive' })
+                  .eq('id', driverData.id);
+              }
+              
               await signOut();
               router.replace('/(auth)/login');
             } catch (error) {
@@ -129,9 +136,67 @@ export default function DriverProfile() {
   };
 
   const handleUpdateProfile = async () => {
-    if (!user || !driverData) return;
+    if (!user) return;
     
-    Alert.alert('Update Profile', 'Profile update feature coming soon!');
+    Alert.alert(
+      'Update Profile',
+      'What would you like to update?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Phone Number', 
+          onPress: () => {
+            Alert.prompt(
+              'Update Phone',
+              'Enter your new phone number:',
+              async (phone) => {
+                if (phone && driverData) {
+                  try {
+                    const { error } = await driversTable()
+                      .update({ phone })
+                      .eq('id', driverData.id);
+                    
+                    if (error) throw error;
+                    
+                    Alert.alert('Success', 'Phone number updated successfully');
+                    loadDriverData();
+                  } catch (error) {
+                    console.error('Error updating phone:', error);
+                    Alert.alert('Error', 'Failed to update phone number');
+                  }
+                }
+              }
+            );
+          }
+        },
+        { 
+          text: 'Full Name', 
+          onPress: () => {
+            Alert.prompt(
+              'Update Name',
+              'Enter your full name:',
+              async (name) => {
+                if (name && driverData) {
+                  try {
+                    const { error } = await driversTable()
+                      .update({ name })
+                      .eq('id', driverData.id);
+                    
+                    if (error) throw error;
+                    
+                    Alert.alert('Success', 'Name updated successfully');
+                    loadDriverData();
+                  } catch (error) {
+                    console.error('Error updating name:', error);
+                    Alert.alert('Error', 'Failed to update name');
+                  }
+                }
+              }
+            );
+          }
+        },
+      ]
+    );
   };
 
   const handleManageVehicle = async () => {
@@ -139,21 +204,165 @@ export default function DriverProfile() {
     
     Alert.alert(
       'Vehicle Information',
-      `Vehicle Type: ${vehicleInfo.type}\nLicense Plate: ${vehicleInfo.licensePlate}\nVerified: ${vehicleInfo.verified ? 'Yes' : 'No'}`
+      `Current: ${vehicleInfo.type} • ${vehicleInfo.licensePlate}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Update License Plate', 
+          onPress: () => {
+            Alert.prompt(
+              'Update License Plate',
+              'Enter new license plate:',
+              async (licensePlate) => {
+                if (licensePlate && driverData) {
+                  try {
+                    const { error } = await driversTable()
+                      .update({ license_plate: licensePlate.toUpperCase() })
+                      .eq('id', driverData.id);
+                    
+                    if (error) throw error;
+                    
+                    Alert.alert('Success', 'License plate updated successfully');
+                    loadDriverData();
+                  } catch (error) {
+                    console.error('Error updating license plate:', error);
+                    Alert.alert('Error', 'Failed to update license plate');
+                  }
+                }
+              }
+            );
+          }
+        },
+        { 
+          text: 'Change Vehicle Type', 
+          onPress: () => {
+            Alert.alert(
+              'Change Vehicle Type',
+              'Select new vehicle type:',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { 
+                  text: 'Economy', 
+                  onPress: async () => {
+                    try {
+                      const { error } = await driversTable()
+                        .update({ vehicle_type: 'economy' })
+                        .eq('id', driverData.id);
+                      
+                      if (error) throw error;
+                      
+                      Alert.alert('Success', 'Vehicle type updated to Economy');
+                      loadDriverData();
+                    } catch (error) {
+                      console.error('Error updating vehicle type:', error);
+                      Alert.alert('Error', 'Failed to update vehicle type');
+                    }
+                  }
+                },
+                { 
+                  text: 'Comfort', 
+                  onPress: async () => {
+                    try {
+                      const { error } = await driversTable()
+                        .update({ vehicle_type: 'comfort' })
+                        .eq('id', driverData.id);
+                      
+                      if (error) throw error;
+                      
+                      Alert.alert('Success', 'Vehicle type updated to Comfort');
+                      loadDriverData();
+                    } catch (error) {
+                      console.error('Error updating vehicle type:', error);
+                      Alert.alert('Error', 'Failed to update vehicle type');
+                    }
+                  }
+                },
+                { 
+                  text: 'Luxury', 
+                  onPress: async () => {
+                    try {
+                      const { error } = await driversTable()
+                        .update({ vehicle_type: 'luxury' })
+                        .eq('id', driverData.id);
+                      
+                      if (error) throw error;
+                      
+                      Alert.alert('Success', 'Vehicle type updated to Luxury');
+                      loadDriverData();
+                    } catch (error) {
+                      console.error('Error updating vehicle type:', error);
+                      Alert.alert('Error', 'Failed to update vehicle type');
+                    }
+                  }
+                },
+              ]
+            );
+          }
+        },
+      ]
     );
   };
 
   const handleManageDocuments = async () => {
+    if (!driverData) return;
+    
     Alert.alert(
-      'Documents',
-      `Status: ${vehicleInfo.verified ? 'All documents verified' : 'Verification pending'}`
+      'Documents Status',
+      `Verification: ${vehicleInfo.verified ? 'Verified ✓' : 'Pending Review'}`,
+      [
+        { text: 'OK', style: 'cancel' },
+        { 
+          text: 'Re-submit Documents', 
+          onPress: () => {
+            Alert.alert(
+              'Re-submit Documents',
+              'This will mark your documents as pending review again.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Re-submit',
+                  onPress: async () => {
+                    try {
+                      const { error } = await driversTable()
+                        .update({ 
+                          documents_verified: false,
+                          status: 'inactive' // Set to inactive until re-verified
+                        })
+                        .eq('id', driverData.id);
+                      
+                      if (error) throw error;
+                      
+                      Alert.alert('Success', 'Documents marked for re-review. You will be notified once verified.');
+                      loadDriverData();
+                    } catch (error) {
+                      console.error('Error updating documents status:', error);
+                      Alert.alert('Error', 'Failed to update documents status');
+                    }
+                  }
+                }
+              ]
+            );
+          }
+        },
+      ]
     );
   };
 
   const handleEarningsSettings = async () => {
+    if (!driverData) return;
+    
     Alert.alert(
       'Earnings & Payments',
-      `Total Earnings: $${driverStats.totalEarnings.toFixed(2)}\nTotal Trips: ${driverStats.totalTrips}`
+      `Total Earnings: $${driverStats.totalEarnings.toFixed(2)}\nTotal Trips: ${driverStats.totalTrips}\nCurrent Status: ${driverData.status}`,
+      [
+        { text: 'OK', style: 'cancel' },
+        { 
+          text: 'View Detailed Earnings', 
+          onPress: () => {
+            router.push('/(driver)/(tabs)/earnings');
+          }
+        },
+      ]
     );
   };
 
@@ -188,7 +397,21 @@ export default function DriverProfile() {
       label: 'Notifications',
       hasSwitch: true,
       switchValue: notificationsEnabled,
-      onToggle: setNotificationsEnabled,
+      onToggle: async (value: boolean) => {
+        setNotificationsEnabled(value);
+        
+        // Save notification preference
+        try {
+          // In a real app, you'd save this to a user preferences table
+          Alert.alert(
+            'Notifications Updated',
+            `Push notifications are now ${value ? 'enabled' : 'disabled'}`
+          );
+        } catch (error) {
+          console.error('Error updating notifications:', error);
+          setNotificationsEnabled(!value); // Revert on error
+        }
+      },
       color: '#8B5CF6',
     },
   ];
@@ -200,7 +423,24 @@ export default function DriverProfile() {
       label: 'Auto-Accept Rides',
       hasSwitch: true,
       switchValue: autoAcceptEnabled,
-      onToggle: setAutoAcceptEnabled,
+      onToggle: async (value: boolean) => {
+        setAutoAcceptEnabled(value);
+        
+        // Save auto-accept preference to database
+        if (driverData) {
+          try {
+            // Note: This would require adding an auto_accept field to drivers table
+            // For now, we'll just update local state
+            Alert.alert(
+              'Auto-Accept Updated',
+              `Auto-accept rides is now ${value ? 'enabled' : 'disabled'}`
+            );
+          } catch (error) {
+            console.error('Error updating auto-accept:', error);
+            setAutoAcceptEnabled(!value); // Revert on error
+          }
+        }
+      },
       color: '#6B7280',
     },
     {
