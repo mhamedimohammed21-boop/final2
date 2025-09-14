@@ -136,7 +136,8 @@ export default function DriverDashboard() {
   const handleGoOnline = async () => {
     if (!driverData) return;
     
-    const newStatus = isOnline ? 'inactive' : 'active';
+    const newOnlineStatus = !isOnline;
+    const newStatus = newOnlineStatus ? 'active' : 'inactive';
     
     try {
       // Update driver status in database
@@ -150,16 +151,16 @@ export default function DriverDashboard() {
       if (error) throw error;
       
       // Update local state
-      setIsOnline(!isOnline);
+      setIsOnline(newOnlineStatus);
       setDriverData({ ...driverData, status: newStatus });
       
       Alert.alert(
         'Status Updated', 
-        isOnline ? 'You are now offline' : 'You are now online and ready to receive rides!'
+        newOnlineStatus ? 'You are now online and ready to receive rides!' : 'You are now offline'
       );
       
       // If going online, start checking for ride requests
-      if (!isOnline) {
+      if (newOnlineStatus) {
         loadRideRequests();
       } else {
         // If going offline, clear any pending requests
@@ -190,21 +191,19 @@ export default function DriverDashboard() {
       const { error } = await ridesTable()
         .update({ 
           driver_id: driverData.id,
-          eta: '5 min' // Set initial ETA
+          eta: '5 min'
         })
         .eq('id', pendingRideRequest.id);
       
       if (error) throw error;
       
-      // Update driver status to busy
-      await driversTable()
-        .update({ status: 'active' })
-        .eq('id', driverData.id);
-      
       setCurrentRide(pendingRideRequest);
       setPendingRideRequest(null);
       
       Alert.alert('Ride Accepted', 'Navigate to pickup location');
+      
+      // Reload ride requests to get updated data
+      loadRideRequests();
     } catch (error) {
       console.error('Error accepting ride:', error);
       Alert.alert('Error', 'Failed to accept ride. Please try again.');
@@ -257,7 +256,7 @@ export default function DriverDashboard() {
                 .update({ 
                   total_rides: (driverData.total_rides || 0) + 1,
                   earnings: (driverData.earnings || 0) + (currentRide.fare || 0),
-                  status: 'active' // Available for new rides
+                  last_active: new Date().toISOString()
                 })
                 .eq('id', driverData.id);
               

@@ -130,7 +130,19 @@ export default function DriverProfile() {
   };
 
   const handleSwitchToPassenger = () => {
-    router.replace('/(tabs)');
+    Alert.alert(
+      'Switch to Passenger Mode',
+      'You will be redirected to the passenger app. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          onPress: () => {
+            router.replace('/(tabs)');
+          },
+        },
+      ]
+    );
   };
 
   const handleUpdateProfile = async () => {
