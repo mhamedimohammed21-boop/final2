@@ -47,8 +47,10 @@ export default function RootLayout() {
       console.log('No user found, redirecting to login');
       router.replace('/(auth)/login');
       return;
+    }
+    
     // If user is authenticated but in auth group, redirect to appropriate dashboard
-    } else if (user && inAuthGroup) {
+    if (user && inAuthGroup) {
       console.log('User authenticated, routing to correct interface for:', userType);
       
       if (userType === 'driver') {
