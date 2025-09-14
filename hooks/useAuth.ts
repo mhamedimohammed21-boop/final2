@@ -104,8 +104,6 @@ export function useAuth() {
             email: data.user.email!,
             full_name: fullName,
             user_type: userType,
-            rating: 5.0,
-            total_trips: 0,
           });
         
         if (profileError) {
