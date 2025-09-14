@@ -56,7 +56,8 @@ export default function LoginScreen() {
     if (error) {
       Alert.alert('Login Failed', error.message);
     } else {
-      router.replace('/(tabs)');
+      // Don't manually redirect here - let the _layout.tsx handle routing based on user type
+      console.log('Login successful, letting _layout handle routing');
     }
   };
 

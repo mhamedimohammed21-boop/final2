@@ -22,7 +22,7 @@ export default function DriverModeToggle({ currentMode, onModeChange }: DriverMo
           text: 'Continue',
           onPress: () => {
             onModeChange('driver');
-            routerInstance.push('/(driver)/dashboard');
+            routerInstance.replace('/(driver)/(tabs)/dashboard');
           },
         },
       ]
@@ -39,7 +39,7 @@ export default function DriverModeToggle({ currentMode, onModeChange }: DriverMo
           text: 'Continue',
           onPress: () => {
             onModeChange('admin');
-            routerInstance.push('/(admin)/dashboard');
+            routerInstance.replace('/(admin)/dashboard');
           },
         },
       ]
@@ -55,7 +55,7 @@ export default function DriverModeToggle({ currentMode, onModeChange }: DriverMo
           text: 'Continue',
           onPress: () => {
             onModeChange('passenger');
-            routerInstance.push('/(tabs)');
+            routerInstance.replace('/(tabs)');
           },
         },
       ]
