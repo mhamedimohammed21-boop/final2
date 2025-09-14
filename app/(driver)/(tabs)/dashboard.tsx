@@ -14,27 +14,112 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Car, DollarSign, Clock, MapPin, Star, Navigation, Phone, MessageCircle, Settings, ChartBar as BarChart3, User, Zap, Shield } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/hooks/useAuth';
+import { driversTable, ridesTable } from '@/lib/typedSupabase';
+import { Database } from '@/types/database';
 import MapView from '@/components/MapView';
+
+type Driver = Database['public']['Tables']['drivers']['Row'];
+type Ride = Database['public']['Tables']['rides']['Row'];
 
 export default function DriverDashboard() {
   const [isOnline, setIsOnline] = useState(false);
-  const [currentRide, setCurrentRide] = useState(null);
+  const [currentRide, setCurrentRide] = useState<Ride | null>(null);
+  const [pendingRideRequest, setPendingRideRequest] = useState<Ride | null>(null);
+  const [driverData, setDriverData] = useState<Driver | null>(null);
   const [fadeAnim] = useState(new Animated.Value(0));
   const [todayEarnings, setTodayEarnings] = useState(127.50);
   const [todayTrips, setTodayTrips] = useState(8);
   const [rating, setRating] = useState(4.8);
+  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
   useEffect(() => {
+    if (user) {
+      loadDriverData();
+      loadRideRequests();
+    }
+    
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 600,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [user]);
 
-  const handleGoOnline = () => {
-    setIsOnline(!isOnline);
+  const loadDriverData = async () => {
+    if (!user) return;
+    
+    try {
+      const { data: drivers, error } = await driversTable()
+        .select('*')
+        .eq('email', user.email!);
+      
+      if (error) throw error;
+      
+      if (drivers && drivers.length > 0) {
+        const driver = drivers[0];
+        setDriverData(driver);
+        setIsOnline(driver.status === 'active');
+        setRating(driver.rating || 4.8);
+        
+        // Calculate today's stats from driver data
+        setTodayEarnings(driver.earnings || 0);
+        setTodayTrips(driver.total_rides || 0);
+      }
+    } catch (error) {
+      console.error('Error loading driver data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadRideRequests = async () => {
+    if (!user || !driverData) return;
+    
+    try {
+      // Check for pending ride requests assigned to this driver
+      const { data: rides, error } = await ridesTable()
+        .select('*')
+        .eq('driver_id', driverData.id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (error) throw error;
+      
+      if (rides && rides.length > 0) {
+        const ride = rides[0];
+        // If ride is just assigned, show as request; if in progress, show as current
+        if (ride.eta && ride.eta !== '0 min') {
+          setPendingRideRequest(ride);
+        } else {
+          setCurrentRide(ride);
+        }
+      }
+      
+      // Also check for unassigned rides if driver is online
+      if (isOnline) {
+        const { data: unassignedRides, error: unassignedError } = await ridesTable()
+          .select('*')
+          .is('driver_id', null)
+          .eq('status', 'active')
+          .order('created_at', { ascending: true })
+          .limit(1);
+        
+        if (!unassignedError && unassignedRides && unassignedRides.length > 0) {
+          setPendingRideRequest(unassignedRides[0]);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading ride requests:', error);
+    }
+  };
+
+  const handleGoOnline = async () => {
+    if (!driverData) return;
+    
+    const newStatus = isOnline ? 'inactive' : 'active';
+    
     Alert.alert(
       isOnline ? 'Going Offline' : 'Going Online',
       isOnline 
@@ -44,37 +129,158 @@ export default function DriverDashboard() {
         { text: 'Cancel', style: 'cancel' },
         { 
           text: 'Confirm', 
-          onPress: () => {
-            setIsOnline(!isOnline);
-            Alert.alert(
-              'Status Updated', 
-              isOnline ? 'You are now offline' : 'You are now online and ready to receive rides!'
-            );
+          onPress: async () => {
+            try {
+              // Update driver status in database
+              const { error } = await driversTable()
+                .update({ 
+                  status: newStatus,
+                  last_active: new Date().toISOString()
+                })
+                .eq('id', driverData.id);
+              
+              if (error) throw error;
+              
+              setIsOnline(!isOnline);
+              
+              Alert.alert(
+                'Status Updated', 
+                isOnline ? 'You are now offline' : 'You are now online and ready to receive rides!'
+              );
+              
+              // If going online, start checking for ride requests
+              if (!isOnline) {
+                loadRideRequests();
+              } else {
+                // If going offline, clear any pending requests
+                setPendingRideRequest(null);
+              }
+            } catch (error) {
+              console.error('Error updating driver status:', error);
+              Alert.alert('Error', 'Failed to update status. Please try again.');
+            }
           }
         },
       ]
     );
   };
 
-  const mockRideRequest = {
-    id: 'ride-123',
-    passenger: 'John Smith',
-    pickup: '123 Main St, Downtown',
-    destination: '456 Oak Ave, Uptown',
-    distance: '3.2 km',
-    estimatedFare: 18.50,
-    estimatedTime: '12 min',
-    passengerRating: 4.7
+  // Refresh ride requests every 30 seconds when online
+  useEffect(() => {
+    if (isOnline && driverData) {
+      const interval = setInterval(() => {
+        loadRideRequests();
+      }, 30000); // Check every 30 seconds
+      
+      return () => clearInterval(interval);
+    }
+  }, [isOnline, driverData]);
+
+  const handleAcceptRide = async () => {
+    if (!pendingRideRequest || !driverData) return;
+    
+    try {
+      // Assign driver to the ride
+      const { error } = await ridesTable()
+        .update({ 
+          driver_id: driverData.id,
+          eta: '5 min' // Set initial ETA
+        })
+        .eq('id', pendingRideRequest.id);
+      
+      if (error) throw error;
+      
+      // Update driver status to busy
+      await driversTable()
+        .update({ status: 'active' })
+        .eq('id', driverData.id);
+      
+      setCurrentRide(pendingRideRequest);
+      setPendingRideRequest(null);
+      
+      Alert.alert('Ride Accepted', 'Navigate to pickup location');
+    } catch (error) {
+      console.error('Error accepting ride:', error);
+      Alert.alert('Error', 'Failed to accept ride. Please try again.');
+    }
   };
 
-  const handleAcceptRide = () => {
-    setCurrentRide(mockRideRequest);
-    Alert.alert('Ride Accepted', 'Navigate to pickup location');
+  const handleDeclineRide = async () => {
+    if (!pendingRideRequest) return;
+    
+    try {
+      // For now, just remove from local state
+      // In a real app, you might want to track declined rides
+      setPendingRideRequest(null);
+      
+      Alert.alert('Ride Declined', 'Looking for another ride...');
+      
+      // Look for next available ride
+      setTimeout(() => {
+        loadRideRequests();
+      }, 2000);
+    } catch (error) {
+      console.error('Error declining ride:', error);
+    }
   };
 
-  const handleDeclineRide = () => {
-    Alert.alert('Ride Declined', 'Looking for another ride...');
+  const handleCompleteRide = async () => {
+    if (!currentRide || !driverData) return;
+    
+    Alert.alert(
+      'Complete Ride',
+      'Mark this ride as completed?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Complete',
+          onPress: async () => {
+            try {
+              // Update ride status to completed
+              const { error } = await ridesTable()
+                .update({ 
+                  status: 'completed',
+                  completed_at: new Date().toISOString()
+                })
+                .eq('id', currentRide.id);
+              
+              if (error) throw error;
+              
+              // Update driver stats
+              await driversTable()
+                .update({ 
+                  total_rides: (driverData.total_rides || 0) + 1,
+                  earnings: (driverData.earnings || 0) + (currentRide.fare || 0),
+                  status: 'active' // Available for new rides
+                })
+                .eq('id', driverData.id);
+              
+              setCurrentRide(null);
+              Alert.alert('Success', 'Ride completed successfully!');
+              
+              // Reload data to update stats
+              loadDriverData();
+              loadRideRequests();
+            } catch (error) {
+              console.error('Error completing ride:', error);
+              Alert.alert('Error', 'Failed to complete ride. Please try again.');
+            }
+          }
+        }
+      ]
+    );
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading dashboard...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -158,7 +364,7 @@ export default function DriverDashboard() {
       </View>
 
       {/* Ride Request Modal */}
-      {isOnline && !currentRide && (
+      {isOnline && !currentRide && pendingRideRequest && (
         <View style={styles.rideRequestModal}>
           <View style={styles.rideRequestHeader}>
             <Text style={styles.rideRequestTitle}>New Ride Request</Text>
@@ -174,10 +380,10 @@ export default function DriverDashboard() {
                 <User size={20} color="#FFFFFF" />
               </View>
               <View style={styles.passengerDetails}>
-                <Text style={styles.passengerName}>{mockRideRequest.passenger}</Text>
+                <Text style={styles.passengerName}>Passenger</Text>
                 <View style={styles.passengerRating}>
                   <Star size={12} color="#F59E0B" fill="#F59E0B" />
-                  <Text style={styles.ratingText}>{mockRideRequest.passengerRating}</Text>
+                  <Text style={styles.ratingText}>4.7</Text>
                 </View>
               </View>
             </View>
@@ -185,16 +391,16 @@ export default function DriverDashboard() {
             <View style={styles.rideDetails}>
               <View style={styles.rideDetailRow}>
                 <MapPin size={16} color="#10B981" />
-                <Text style={styles.rideDetailText}>{mockRideRequest.pickup}</Text>
+                <Text style={styles.rideDetailText}>{pendingRideRequest.pickup_location}</Text>
               </View>
               <View style={styles.rideDetailRow}>
                 <Navigation size={16} color="#DC2626" />
-                <Text style={styles.rideDetailText}>{mockRideRequest.destination}</Text>
+                <Text style={styles.rideDetailText}>{pendingRideRequest.dropoff_location}</Text>
               </View>
               <View style={styles.rideMetrics}>
-                <Text style={styles.metricText}>{mockRideRequest.distance}</Text>
-                <Text style={styles.metricText}>{mockRideRequest.estimatedTime}</Text>
-                <Text style={styles.fareText}>${mockRideRequest.estimatedFare}</Text>
+                <Text style={styles.metricText}>{pendingRideRequest.distance?.toFixed(1)} km</Text>
+                <Text style={styles.metricText}>{pendingRideRequest.duration} min</Text>
+                <Text style={styles.fareText}>${(pendingRideRequest.fare || 0).toFixed(2)}</Text>
               </View>
             </View>
           </View>
@@ -233,8 +439,8 @@ export default function DriverDashboard() {
           </View>
           
           <View style={styles.currentRideContent}>
-            <Text style={styles.currentRidePassenger}>{currentRide.passenger}</Text>
-            <Text style={styles.currentRideDestination}>{currentRide.destination}</Text>
+            <Text style={styles.currentRidePassenger}>Current Passenger</Text>
+            <Text style={styles.currentRideDestination}>{currentRide.dropoff_location}</Text>
             
             <View style={styles.currentRideActions}>
               <TouchableOpacity style={styles.contactButton}>
@@ -243,9 +449,9 @@ export default function DriverDashboard() {
               <TouchableOpacity style={styles.contactButton}>
                 <MessageCircle size={18} color="#FFFFFF" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.navigationButton}>
+              <TouchableOpacity style={styles.navigationButton} onPress={handleCompleteRide}>
                 <Navigation size={18} color="#FFFFFF" />
-                <Text style={styles.navigationText}>Navigate</Text>
+                <Text style={styles.navigationText}>Complete</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -259,6 +465,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
   },
   header: {
     paddingTop: 50,
