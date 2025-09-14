@@ -277,23 +277,7 @@ export class RideService {
 
   // Ensure passenger record exists and return passenger ID
   private async ensurePassengerExists(userId: string): Promise<string> {
-    // Directly query passengers table using user_id
-    const { data: existingPassenger, error: selectError } = await passengersTable()
-      .select('id')
-      .eq('user_id', userId)
-      .single();
-
-    if (selectError && selectError.code !== 'PGRST116') { // PGRST116 is "No rows found"
-      console.error('Error checking existing passenger:', selectError);
-      throw selectError;
-    }
-
-    if (existingPassenger) {
-      return existingPassenger.id;
-    }
-
-    // If no passenger record found, create one
-    // Try to get user profile, but handle missing profiles gracefully
+    // Get user info for passenger creation
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('email, full_name')
@@ -322,22 +306,25 @@ export class RideService {
       userName = profile.full_name || profile.email?.split('@')[0] || 'User';
     }
     
-    const { data: newPassenger, error: insertError } = await passengersTable()
-      .insert({
+    // Use upsert to handle existing passengers gracefully
+    const { data: passenger, error: upsertError } = await passengersTable()
+      .upsert({
         user_id: userId,
         name: userName,
         email: userEmail,
         phone: '',
         status: 'active'
+      }, {
+        onConflict: 'user_id'
       })
       .select()
       .single();
     
-    if (insertError) {
-      console.error('Error creating new passenger:', insertError);
-      throw insertError;
+    if (upsertError) {
+      console.error('Error upserting passenger:', upsertError);
+      throw upsertError;
     }
-    return newPassenger.id;
+    return passenger.id;
   }
 
   // Get route estimate
