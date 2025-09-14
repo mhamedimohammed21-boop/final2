@@ -113,15 +113,19 @@ export default function DriverProfile() {
           style: 'destructive',
           onPress: async () => {
             try {
+              await signOut();
               router.replace('/(auth)/login');
+            } catch (error) {
               console.error('Logout error:', error);
-  const handleSwitchToPassenger = () => {
-              router.replace('/(auth)/login');
-            router.replace('/(tabs)');
+            }
           },
         },
       ]
     );
+  };
+
+  const handleSwitchToPassenger = () => {
+    router.replace('/(tabs)');
   };
 
   const handleUpdateProfile = async () => {
