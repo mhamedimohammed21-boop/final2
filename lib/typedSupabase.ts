@@ -25,7 +25,7 @@ export const ridesTable = () => {
 // Mock data for drivers
 const mockDrivers = [
   {
-    id: 'driver1',
+    id: '550e8400-e29b-41d4-a716-446655440001',
     name: 'Mohammed Alami',
     email: 'mohammed.alami@example.com',
     phone: '+212600000001',
@@ -39,7 +39,7 @@ const mockDrivers = [
     updated_at: new Date().toISOString()
   },
   {
-    id: 'driver2',
+    id: '550e8400-e29b-41d4-a716-446655440002',
     name: 'Sara Benjelloun',
     email: 'sara.benjelloun@example.com',
     phone: '+212600000002',
@@ -53,7 +53,7 @@ const mockDrivers = [
     updated_at: new Date().toISOString()
   },
   {
-    id: 'driver3',
+    id: '550e8400-e29b-41d4-a716-446655440003',
     name: 'Karim Tazi',
     email: 'karim.tazi@example.com',
     phone: '+212600000003',
