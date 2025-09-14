@@ -10,21 +10,7 @@ import {
   Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { 
-  Users, 
-  Car, 
-  DollarSign, 
-  TrendingUp, 
-  Settings, 
-  FileText, 
-  BarChart3, 
-  Shield,
-  Bell,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  MapPin
-} from 'lucide-react-native';
+import { Users, Car, DollarSign, TrendingUp, Settings, FileText, ChartBar as BarChart3, Shield, Bell, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, Clock, MapPin } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/hooks/useAuth';
 import { router } from 'expo-router';
