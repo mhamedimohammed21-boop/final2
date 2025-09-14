@@ -22,28 +22,10 @@ export function useAuth() {
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        // Fetch user profile to get user type
-        try {
-          const { data: profile, error } = await supabase
-            .from('profiles')
-            .select('user_type')
-            .eq('user_id', session.user.id)
-            .single() as { data: { user_type: UserType } | null; error: any };
-          
-          if (error || !profile) {
-            console.error('Error fetching profile:', error);
-            // Fallback to passenger if profile fetch fails or RLS recursion
-            setUserType('passenger');
-          } else if (profile?.user_type) {
-            setUserType(profile.user_type);
-          } else {
-            setUserType('passenger');
-          }
-        } catch (err) {
-          console.error('Profile fetch error:', err);
-          // Always fallback to passenger on any error
-          setUserType('passenger');
-        }
+        // Temporarily bypass profile fetching due to RLS recursion
+        // Default to passenger until database policies are fixed
+        console.log('[useAuth] Bypassing profile fetch due to RLS recursion - defaulting to passenger');
+        setUserType('passenger');
       }
       
       setLoading(false);
@@ -57,28 +39,10 @@ export function useAuth() {
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        // Fetch user profile to get user type
-        try {
-          const { data: profile, error } = await supabase
-            .from('profiles')
-            .select('user_type')
-            .eq('user_id', session.user.id)
-            .single() as { data: { user_type: UserType } | null; error: any };
-          
-          if (error || !profile) {
-            console.error('Error fetching profile:', error);
-            // Fallback to passenger if profile fetch fails or RLS recursion
-            setUserType('passenger');
-          } else if (profile?.user_type) {
-            setUserType(profile.user_type);
-          } else {
-            setUserType('passenger');
-          }
-        } catch (err) {
-          console.error('Profile fetch error:', err);
-          // Always fallback to passenger on any error
-          setUserType('passenger');
-        }
+        // Temporarily bypass profile fetching due to RLS recursion
+        // Default to passenger until database policies are fixed
+        console.log('[useAuth] Bypassing profile fetch due to RLS recursion - defaulting to passenger');
+        setUserType('passenger');
       } else {
         setUserType(null);
       }
