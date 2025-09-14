@@ -293,23 +293,40 @@ export class RideService {
     }
 
     // If no passenger record found, create one
-    // Get user profile instead of auth.users
+    // Try to get user profile, but handle missing profiles gracefully
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('email, full_name')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
+    
+    // If profile doesn't exist, get user info from auth.users
+    let userEmail = '';
+    let userName = '';
     
     if (profileError || !profile) {
-      console.error('Error getting user profile:', profileError);
-      throw new Error('User profile not found');
+      console.log('Profile not found, getting user from auth.users');
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        console.error('Error getting user from auth:', userError);
+        // Use fallback values
+        userEmail = 'user@example.com';
+        userName = 'User';
+      } else {
+        userEmail = user.email || 'user@example.com';
+        userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
+      }
+    } else {
+      userEmail = profile.email || 'user@example.com';
+      userName = profile.full_name || profile.email?.split('@')[0] || 'User';
     }
     
     const { data: newPassenger, error: insertError } = await passengersTable()
       .insert({
         user_id: userId,
-        name: profile.full_name || profile.email?.split('@')[0] || 'User',
-        email: profile.email || '',
+        name: userName,
+        email: userEmail,
         phone: '',
         status: 'active'
       })

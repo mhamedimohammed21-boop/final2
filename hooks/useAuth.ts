@@ -98,49 +98,28 @@ export function useAuth() {
     if (data.user && !error) {
       // Create user profile with user type
       try {
-        // Use correct type for insert
+        // Try to create or update profile
         const { error: profileError } = await supabase
           .from('profiles')
-          .insert({
+          .upsert({
             user_id: data.user.id,
             email: data.user.email!,
             full_name: fullName,
             user_type: userType,
+          }, {
+            onConflict: 'user_id'
           });
         
         if (profileError) {
           console.error('[useAuth] Profile creation error:', profileError);
-          
-          // Check if it's a missing column error
-          if (profileError.message?.includes('user_type') || profileError.code === '42703') {
-            console.error('[useAuth] Database schema issue: user_type column missing');
-            console.error('[useAuth] Please run the migration to add user_type column to profiles table');
-            console.error('[useAuth] See DATABASE_SETUP.md for instructions');
-            
-            // Try to create profile without user_type as fallback
-            const { error: fallbackError } = await supabase
-              .from('profiles')
-              .upsert({
-                user_id: data.user.id,
-                email: data.user.email!,
-                full_name: fullName,
-                user_type: userType,
-              }, {
-                onConflict: 'user_id'
-              });
-            
-            if (fallbackError) {
-              console.error('[useAuth] Fallback profile creation also failed:', fallbackError);
-            } else {
-              console.log('[useAuth] Profile created without user_type (fallback)');
-            }
-          }
+          console.error('[useAuth] Failed to create profile, but continuing with signup');
         } else {
           console.log('[useAuth] Profile created successfully with user type:', userType);
           setUserType(userType);
         }
       } catch (err) {
         console.error('[useAuth] Error creating profile:', err);
+        // Don't throw error - allow signup to continue even if profile creation fails
       }
     }
 
